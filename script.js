@@ -9,14 +9,364 @@ const searchInput = document.getElementById('search-input');
 const clearButton = document.getElementById('clear-search');
 const searchResults = document.getElementById('search-results');
 
+// Date filter elements
+const toggleDateFilter = document.getElementById('toggle-date-filter');
+const dateFilterControls = document.getElementById('date-filter-controls');
+const startDateInput = document.getElementById('start-date');
+const endDateInput = document.getElementById('end-date');
+const applyDateFilter = document.getElementById('apply-date-filter');
+const clearDateFilter = document.getElementById('clear-date-filter');
+const presetButtons = document.querySelectorAll('.preset-btn');
+
 // Global variables
 let allPosts = [];
 let filteredPosts = [];
 let currentSearchTerm = '';
+let currentStartDate = null;
+let currentEndDate = null;
 let observer;
 const POSTS_PER_PAGE = 25;
 let currentPage = 0;
 let isLoading = false;
+
+// Enhanced search functionality with stopwords and stemming
+const STOPWORDS = new Set([
+    'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'he', 'in', 'is', 'it',
+    'its', 'of', 'on', 'that', 'the', 'to', 'was', 'will', 'with', 'would', 'i', 'you', 'we', 'they',
+    'she', 'her', 'him', 'his', 'my', 'our', 'your', 'their', 'this', 'these', 'those', 'but', 'or',
+    'not', 'can', 'do', 'have', 'had', 'been', 'were', 'am', 'all', 'any', 'some', 'if', 'so', 'what',
+    'when', 'where', 'who', 'why', 'how', 'there', 'here', 'then', 'than', 'more', 'most', 'much',
+    'many', 'very', 'just', 'only', 'also', 'even', 'still', 'now', 'get', 'got', 'go', 'going', 'come',
+    'came', 'see', 'saw', 'know', 'knew', 'think', 'thought', 'say', 'said', 'tell', 'told', 'ask',
+    'asked', 'give', 'gave', 'take', 'took', 'make', 'made', 'want', 'wanted', 'need', 'needed', 'try',
+    'tried', 'look', 'looked', 'feel', 'felt', 'seem', 'seemed', 'find', 'found', 'work', 'worked',
+    'use', 'used', 'call', 'called', 'way', 'ways', 'time', 'times', 'day', 'days', 'year', 'years',
+    'new', 'old', 'first', 'last', 'long', 'good', 'great', 'little', 'own', 'other', 'right', 'left',
+    'high', 'low', 'big', 'small', 'large', 'next', 'early', 'young', 'important', 'few', 'public',
+    'bad', 'same', 'able'
+]);
+
+// Simple stemming rules
+const STEMMING_RULES = [
+    { pattern: /ies$/, replacement: 'y' },
+    { pattern: /ied$/, replacement: 'y' },
+    { pattern: /ying$/, replacement: 'y' },
+    { pattern: /ing$/, replacement: '' },
+    { pattern: /ly$/, replacement: '' },
+    { pattern: /ed$/, replacement: '' },
+    { pattern: /ies$/, replacement: 'y' },
+    { pattern: /ied$/, replacement: 'y' },
+    { pattern: /ies$/, replacement: 'y' },
+    { pattern: /s$/, replacement: '' }
+];
+
+// Normalize text for searching (remove accents, etc.)
+function normalizeText(text) {
+    return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// Simple stemming function
+function stemWord(word) {
+    if (word.length <= 3) return word;
+    
+    for (let rule of STEMMING_RULES) {
+        if (rule.pattern.test(word)) {
+            let stemmed = word.replace(rule.pattern, rule.replacement);
+            if (stemmed.length >= 2) {
+                return stemmed;
+            }
+        }
+    }
+    return word;
+}
+
+// Process search terms (normalize, remove stopwords, stem)
+function processSearchTerms(searchText) {
+    if (!searchText || typeof searchText !== 'string') {
+        return [];
+    }
+    
+    const normalized = normalizeText(searchText.trim());
+    if (normalized.length === 0) {
+        return [];
+    }
+    
+    const words = normalized.split(/\s+/).filter(word => word.length > 0);
+    
+    return words
+        .filter(word => !STOPWORDS.has(word) && word.length > 0)
+        .map(word => ({
+            original: word,
+            stemmed: stemWord(word)
+        }));
+}
+
+// Check if word matches (exact match or meaningful partial match)
+function wordMatch(word, target) {
+    if (word === target) return true;
+    
+    // Only check meaningful partial matches for words of reasonable length
+    if (word.length >= 3 && target.length >= 3) {
+        // Only match if one word starts with the other (prefix matching)
+        // This prevents "iran" from matching "ran" but allows "child" to match "childcare"
+        if (target.startsWith(word) || word.startsWith(target)) return true;
+    }
+    
+    // For shorter words, only allow exact matches
+    if (word.length < 3 || target.length < 3) {
+        return word === target;
+    }
+    
+    return false;
+}
+
+// Get all searchable text from a post
+function getSearchableText(post) {
+    const fields = [
+        post.text || '',
+        post.user_screen_name || '',
+        post.user_name || ''
+        // Removed potentially empty/undefined fields that might cause issues
+    ];
+    
+    return fields.filter(field => field && field.trim()).join(' ').toLowerCase();
+}
+
+// Enhanced search function
+function enhancedSearch(posts, searchTerms) {
+    if (!searchTerms || searchTerms.length === 0) {
+        return posts;
+    }
+    
+    return posts.filter(post => {
+        const searchableText = normalizeText(getSearchableText(post));
+        const searchableWords = searchableText.split(/\s+/).filter(word => word.length > 0);
+        
+        // All search terms must match (AND logic)
+        return searchTerms.every(term => {
+            // Skip empty terms
+            if (!term.original || term.original.length === 0) {
+                return true;
+            }
+            
+            // Check exact match first
+            if (searchableText.includes(term.original)) {
+                return true;
+            }
+            
+            // Check stemmed match
+            if (searchableWords.some(word => stemWord(word) === term.stemmed)) {
+                return true;
+            }
+            
+            // Check word match (exact or partial)
+            return searchableWords.some(word => {
+                // Only do matching if both words are meaningful length
+                if (word.length >= 2 && term.original.length >= 2) {
+                    return wordMatch(term.original, word) || 
+                           wordMatch(term.stemmed, stemWord(word));
+                }
+                return false;
+            });
+        });
+    });
+}
+
+// Enhanced highlighting function
+function highlightSearchTerm(text, searchTerm) {
+    if (!searchTerm || !text) return escapeHTML(text);
+    
+    const processedTerms = processSearchTerms(searchTerm);
+    if (processedTerms.length === 0) return escapeHTML(text);
+    
+    let highlightedText = escapeHTML(text);
+    const normalizedText = normalizeText(text);
+    
+    // Create a map of positions to highlight
+    const highlights = [];
+    
+    processedTerms.forEach(term => {
+        // Find exact matches
+        let index = 0;
+        while ((index = normalizedText.indexOf(term.original, index)) !== -1) {
+            highlights.push({ start: index, end: index + term.original.length });
+            index += term.original.length;
+        }
+        
+        // Find partial matches
+        const words = normalizedText.split(/(\s+)/);
+        let currentPos = 0;
+        
+        words.forEach(word => {
+            const cleanWord = word.replace(/[^\w]/g, '');
+            if (cleanWord.length > 0) {
+                if (wordMatch(term.original, cleanWord) || 
+                    wordMatch(term.stemmed, stemWord(cleanWord))) {
+                    highlights.push({ 
+                        start: currentPos, 
+                        end: currentPos + word.length 
+                    });
+                }
+            }
+            currentPos += word.length;
+        });
+    });
+    
+    // Sort highlights by position and merge overlapping ones
+    highlights.sort((a, b) => a.start - b.start);
+    const mergedHighlights = [];
+    
+    highlights.forEach(highlight => {
+        const last = mergedHighlights[mergedHighlights.length - 1];
+        if (last && highlight.start <= last.end) {
+            last.end = Math.max(last.end, highlight.end);
+        } else {
+            mergedHighlights.push(highlight);
+        }
+    });
+    
+    // Apply highlights from right to left to preserve positions
+    mergedHighlights.reverse().forEach(highlight => {
+        const before = highlightedText.substring(0, highlight.start);
+        const match = highlightedText.substring(highlight.start, highlight.end);
+        const after = highlightedText.substring(highlight.end);
+        
+        highlightedText = before + 
+            '<mark style="background: #fef08a; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-weight: 600;">' + 
+            match + 
+            '</mark>' + 
+            after;
+    });
+    
+    return highlightedText;
+}
+
+// Escape regex special characters
+function escapeRegex(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Initialize search functionality
+function initializeSearch() {
+    searchInput.addEventListener('input', debounce(handleSearch, 300));
+    clearButton.addEventListener('click', clearSearch);
+    
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSearch();
+        }
+    });
+    
+    // Initialize search help
+    const searchHelpButton = document.getElementById('search-help');
+    const searchHelpPanel = document.getElementById('search-help-panel');
+    
+    if (searchHelpButton && searchHelpPanel) {
+        searchHelpButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            searchHelpPanel.classList.toggle('show');
+        });
+        
+        // Close help panel when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!searchHelpPanel.contains(e.target) && !searchHelpButton.contains(e.target)) {
+                searchHelpPanel.classList.remove('show');
+            }
+        });
+        
+        // Close help panel when starting to type
+        searchInput.addEventListener('focus', () => {
+            searchHelpPanel.classList.remove('show');
+        });
+    }
+}
+
+// Handle search input with enhanced search
+function handleSearch() {
+    const searchTerm = searchInput.value.trim();
+    currentSearchTerm = searchTerm;
+    
+    clearButton.style.display = searchTerm ? 'block' : 'none';
+    
+    applyFilters();
+    updatePostCount();
+    postCountElement.style.display = 'block';
+    displayPosts(filteredPosts, true);
+    updateSearchResults(searchTerm);
+}
+
+// Clear search
+function clearSearch() {
+    searchInput.value = '';
+    currentSearchTerm = '';
+    clearButton.style.display = 'none';
+    applyFilters();
+    updatePostCount();
+    displayPosts(filteredPosts, true);
+    searchResults.textContent = '';
+}
+
+// Initialize date filter functionality
+function initializeDateFilter() {
+    // Toggle date filter visibility
+    toggleDateFilter.addEventListener('click', () => {
+        const isExpanded = dateFilterControls.classList.contains('expanded');
+        dateFilterControls.classList.toggle('expanded');
+        toggleDateFilter.classList.toggle('expanded');
+    });
+
+    // Apply date filter
+    applyDateFilter.addEventListener('click', handleDateFilter);
+    
+    // Clear date filter
+    clearDateFilter.addEventListener('click', clearDateFilters);
+    
+    // Date preset buttons
+    presetButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const days = parseInt(button.dataset.days);
+            applyDatePreset(days);
+            button.classList.add('active');
+            
+            // Remove active class from other preset buttons
+            presetButtons.forEach(btn => {
+                if (btn !== button) btn.classList.remove('active');
+            });
+        });
+    });
+    
+    // Date input changes
+    startDateInput.addEventListener('change', validateDateInputs);
+    endDateInput.addEventListener('change', validateDateInputs);
+}
+
+// Apply all filters (enhanced search + date)
+function applyFilters() {
+    let filtered = [...allPosts];
+    
+    // Apply enhanced search filter
+    if (currentSearchTerm) {
+        const searchTerms = processSearchTerms(currentSearchTerm);
+        filtered = enhancedSearch(filtered, searchTerms);
+    }
+    
+    // Apply date filter
+    if (currentStartDate || currentEndDate) {
+        filtered = filtered.filter(post => {
+            const postDate = parsePostDate(post.created_at);
+            if (!postDate) return false;
+            
+            if (currentStartDate && postDate < currentStartDate) return false;
+            if (currentEndDate && postDate > currentEndDate) return false;
+            
+            return true;
+        });
+    }
+    
+    filteredPosts = filtered;
+}
 
 // Load and display posts
 async function loadPosts() {
@@ -50,6 +400,7 @@ async function loadPosts() {
         loadMorePosts();
         
         initializeSearch();
+        initializeDateFilter();
         
     } catch (error) {
         console.error('Error loading posts:', error);
@@ -191,68 +542,122 @@ function createPostElement(post, index, isSearch = false) {
     return postDiv;
 }
 
-// Highlight search terms
-function highlightSearchTerm(text, searchTerm) {
-    if (!searchTerm || !text) return escapeHTML(text);
+// Parse post date from string format "M/D/YYYY H:MM"
+function parsePostDate(dateString) {
+    if (!dateString) return null;
     
-    const escapedText = escapeHTML(text);
-    const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
-    return escapedText.replace(regex, '<mark style="background: #fef08a; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-weight: 600;">$1</mark>');
+    try {
+        // Handle format like "6/28/2025 10:56"
+        const [datePart, timePart] = dateString.split(' ');
+        const [month, day, year] = datePart.split('/');
+        const [hour, minute] = timePart ? timePart.split(':') : ['0', '0'];
+        
+        return new Date(year, month - 1, day, hour, minute);
+    } catch (error) {
+        console.warn('Failed to parse date:', dateString);
+        return null;
+    }
 }
 
-// Escape regex special characters
-function escapeRegex(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Handle date filter application
+function handleDateFilter() {
+    const startDate = startDateInput.value;
+    const endDate = endDateInput.value;
+    
+    currentStartDate = startDate ? new Date(startDate) : null;
+    currentEndDate = endDate ? new Date(endDate + 'T23:59:59') : null; // End of day
+    
+    applyFilters();
+    updatePostCount();
+    displayPosts(filteredPosts, true);
+    updateDateFilterResults();
 }
 
-// Initialize search functionality
-function initializeSearch() {
-    searchInput.addEventListener('input', debounce(handleSearch, 300));
-    clearButton.addEventListener('click', clearSearch);
+// Clear date filters
+function clearDateFilters() {
+    startDateInput.value = '';
+    endDateInput.value = '';
+    currentStartDate = null;
+    currentEndDate = null;
     
-    searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            handleSearch();
+    // Remove active class from preset buttons
+    presetButtons.forEach(btn => btn.classList.remove('active'));
+    
+    applyFilters();
+    updatePostCount();
+    displayPosts(filteredPosts, true);
+    updateDateFilterResults();
+}
+
+// Apply date preset (last N days)
+function applyDatePreset(days) {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - days);
+    
+    // Set input values
+    startDateInput.value = startDate.toISOString().split('T')[0];
+    endDateInput.value = endDate.toISOString().split('T')[0];
+    
+    // Apply filter
+    currentStartDate = startDate;
+    currentEndDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000 - 1); // End of day
+    
+    applyFilters();
+    updatePostCount();
+    displayPosts(filteredPosts, true);
+    updateDateFilterResults();
+}
+
+// Validate date inputs
+function validateDateInputs() {
+    const startDate = startDateInput.value;
+    const endDate = endDateInput.value;
+    
+    if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (start > end) {
+            startDateInput.setCustomValidity('Start date must be before end date');
+            endDateInput.setCustomValidity('End date must be after start date');
+        } else {
+            startDateInput.setCustomValidity('');
+            endDateInput.setCustomValidity('');
         }
-    });
+    }
 }
 
-// Handle search input
-function handleSearch() {
-    const searchTerm = searchInput.value.trim().toLowerCase();
-    currentSearchTerm = searchTerm;
+// Update date filter results display
+function updateDateFilterResults() {
+    if (!currentStartDate && !currentEndDate) return;
     
-    clearButton.style.display = searchTerm ? 'block' : 'none';
+    const hasSearch = !!currentSearchTerm;
+    const dateRange = formatDateRange(currentStartDate, currentEndDate);
     
-    if (!searchTerm) {
-        filteredPosts = [...allPosts];
+    if (hasSearch) {
+        searchResults.innerHTML += ` <span style="color: var(--text-muted);">• Filtered by date: ${dateRange}</span>`;
     } else {
-        filteredPosts = allPosts.filter(post => {
-            const textMatch = post.text && post.text.toLowerCase().includes(searchTerm);
-            const handleMatch = post.user_screen_name && post.user_screen_name.toLowerCase().includes(searchTerm);
-            return textMatch || handleMatch;
-        });
+        searchResults.innerHTML = `Showing posts from ${dateRange}`;
+    }
+}
+
+// Format date range for display
+function formatDateRange(startDate, endDate) {
+    const options = { year: 'numeric', month: 'short', day: 'numeric' };
+    
+    if (startDate && endDate) {
+        return `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', options)}`;
+    } else if (startDate) {
+        return `${startDate.toLocaleDateString('en-US', options)} onwards`;
+    } else if (endDate) {
+        return `up to ${endDate.toLocaleDateString('en-US', options)}`;
     }
     
-    updatePostCount();
-    postCountElement.style.display = 'block';
-    displayPosts(filteredPosts, true);
-    updateSearchResults(searchTerm);
+    return '';
 }
 
-// Clear search
-function clearSearch() {
-    searchInput.value = '';
-    currentSearchTerm = '';
-    clearButton.style.display = 'none';
-    filteredPosts = [...allPosts];
-    updatePostCount();
-    displayPosts(filteredPosts, true);
-    searchResults.textContent = '';
-}
-
-// Update search results text
+// Update search results text with enhanced search info
 function updateSearchResults(searchTerm) {
     if (!searchTerm) {
         searchResults.textContent = '';
@@ -261,13 +666,19 @@ function updateSearchResults(searchTerm) {
     
     const count = filteredPosts.length;
     const totalCount = allPosts.length;
+    const processedTerms = processSearchTerms(searchTerm);
     
     if (count === 0) {
         searchResults.innerHTML = `No results found for "<strong>${escapeHTML(searchTerm)}</strong>"`;
     } else if (count === totalCount) {
         searchResults.innerHTML = `All ${count} posts match "<strong>${escapeHTML(searchTerm)}</strong>"`;
     } else {
-        searchResults.innerHTML = `Found ${count} of ${totalCount} posts matching "<strong>${escapeHTML(searchTerm)}</strong>"`;
+        const searchInfo = processedTerms.length > 0 ? 
+            `<br><span style="color: var(--text-muted); font-size: 0.875rem;">
+                Searching for: ${processedTerms.map(t => `"${t.original}"`).join(', ')}${processedTerms.some(t => t.original !== t.stemmed) ? ' (including word variations)' : ''}
+            </span>` : '';
+        
+        searchResults.innerHTML = `Found ${count} of ${totalCount} posts matching "<strong>${escapeHTML(searchTerm)}</strong>"${searchInfo}`;
     }
 }
 

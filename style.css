@@ -211,10 +211,270 @@ body {
     background-color: var(--hover-bg);
 }
 
+.search-help-button {
+    position: absolute;
+    right: 45px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-help-button:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.search-help-panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+}
+
+.search-help-panel.show {
+    display: block;
+}
+
+.search-help-content {
+    padding: 16px;
+}
+
+.search-help-content h4 {
+    margin: 0 0 12px 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.search-help-content ul {
+    margin: 0 0 12px 0;
+    padding-left: 16px;
+    list-style-type: disc;
+}
+
+.search-help-content li {
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.search-help-content li strong {
+    color: var(--text-primary);
+}
+
+.search-help-content p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 .search-results-count {
     color: var(--text-secondary);
     font-size: 13px;
     margin-top: 4px;
+    line-height: 1.4;
+}
+
+.search-results-count .search-details {
+    font-size: 11px;
+    opacity: 0.8;
+    margin-top: 2px;
+    display: block;
+    font-style: italic;
+}
+
+/* Date filter styles */
+.date-filter-section {
+    margin-top: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background-color: var(--card-bg);
+}
+
+.date-filter-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    border-radius: var(--radius-lg);
+}
+
+.date-filter-header:hover {
+    background-color: var(--hover-bg);
+}
+
+.date-filter-header span:first-child {
+    color: var(--text-secondary);
+    font-size: 18px;
+}
+
+.date-filter-header span:nth-child(2) {
+    flex-grow: 1;
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.toggle-button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+}
+
+.toggle-button:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.toggle-button .material-symbols-outlined {
+    font-size: 20px;
+    transition: transform 0.2s ease;
+}
+
+.toggle-button.expanded .material-symbols-outlined {
+    transform: rotate(180deg);
+}
+
+.date-filter-controls {
+    display: none;
+    padding: 0 16px 16px 16px;
+    border-top: 1px solid var(--border-color);
+    margin-top: -1px;
+}
+
+.date-filter-controls.expanded {
+    display: block;
+}
+
+.date-inputs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.date-input-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.date-input-group label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.date-input {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    color: var(--text-primary);
+    background-color: var(--card-bg);
+    transition: all 0.2s ease;
+}
+
+.date-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(29, 161, 242, 0.2);
+}
+
+.date-filter-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.apply-filter-btn, .clear-filter-btn {
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+}
+
+.apply-filter-btn {
+    background-color: var(--primary-color);
+    color: white;
+    flex: 1;
+}
+
+.apply-filter-btn:hover {
+    background-color: var(--primary-hover);
+}
+
+.apply-filter-btn:disabled {
+    background-color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.clear-filter-btn {
+    background-color: var(--secondary-color);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.clear-filter-btn:hover {
+    background-color: var(--hover-bg);
+}
+
+.date-presets {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.preset-btn {
+    padding: 6px 12px;
+    background-color: var(--secondary-color);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.preset-btn:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--text-secondary);
+}
+
+.preset-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
 }
 
 /* Posts grid */
@@ -334,6 +594,34 @@ body {
 
 .post.highlight .text.match {
     background-size: 100% 100%;
+}
+
+/* Enhanced highlighting for different match types */
+.post .text mark {
+    background: linear-gradient(135deg, #fef08a 0%, #fde047 100%);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.post .text mark:hover {
+    background: linear-gradient(135deg, #fde047 0%, #facc15 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Fuzzy match highlighting */
+.post .text mark.fuzzy-match {
+    background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%);
+    border: 1px solid #a78bfa;
+}
+
+/* Stemmed match highlighting */
+.post .text mark.stem-match {
+    background: linear-gradient(135deg, #bbf7d0 0%, #86efac 100%);
+    border: 1px solid #4ade80;
 }
 
 
@@ -550,6 +838,25 @@ body {
     .post .post-link {
         font-size: 12px;
         padding: 4px 8px;
+    }
+    
+    .date-inputs {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .date-filter-actions {
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    .date-presets {
+        justify-content: center;
+    }
+    
+    .preset-btn {
+        font-size: 11px;
+        padding: 5px 10px;
     }
 }
 

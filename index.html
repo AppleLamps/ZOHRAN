@@ -53,10 +53,57 @@
                 <div id="post-count" class="post-count"></div>
                 <div class="search-input-wrapper">
                     <span class="material-symbols-outlined search-icon">search</span>
-                    <input type="text" id="search-input" class="search-input" placeholder="Search posts..." />
+                    <input type="text" id="search-input" class="search-input" placeholder="Search posts (try: 'rent freeze', 'childcare', 'busses')..." />
                     <button id="clear-search" class="clear-button">
                         <span class="material-symbols-outlined">close</span>
                     </button>
+                    <button id="search-help" class="search-help-button" title="Search Help">
+                        <span class="material-symbols-outlined">help</span>
+                    </button>
+                </div>
+                <div class="search-help-panel" id="search-help-panel">
+                    <div class="search-help-content">
+                        <h4>Enhanced Search Features</h4>
+                        <ul>
+                            <li><strong>Match All Words:</strong> All words must be found (AND logic)</li>
+                            <li><strong>Partial Matching:</strong> "child" matches "childcare"</li>
+                            <li><strong>Word Variations:</strong> "running" matches "run", "ran" (stemming)</li>
+                            <li><strong>Search All Fields:</strong> Text, username, and other post data</li>
+                            <li><strong>Smart Highlighting:</strong> All matches highlighted</li>
+                            <li><strong>Exact Matching:</strong> Precise results without fuzzy approximations</li>
+                        </ul>
+                        <p><em>Stopwords like "the", "and", "of" are automatically ignored.</em></p>
+                    </div>
+                </div>
+                <div class="date-filter-section">
+                    <div class="date-filter-header">
+                        <span class="material-symbols-outlined">date_range</span>
+                        <span>Filter by date</span>
+                        <button id="toggle-date-filter" class="toggle-button">
+                            <span class="material-symbols-outlined">expand_more</span>
+                        </button>
+                    </div>
+                    <div class="date-filter-controls" id="date-filter-controls">
+                        <div class="date-inputs">
+                            <div class="date-input-group">
+                                <label for="start-date">From:</label>
+                                <input type="date" id="start-date" class="date-input" />
+                            </div>
+                            <div class="date-input-group">
+                                <label for="end-date">To:</label>
+                                <input type="date" id="end-date" class="date-input" />
+                            </div>
+                        </div>
+                        <div class="date-filter-actions">
+                            <button id="apply-date-filter" class="apply-filter-btn">Apply Filter</button>
+                            <button id="clear-date-filter" class="clear-filter-btn">Clear</button>
+                        </div>
+                        <div class="date-presets">
+                            <button class="preset-btn" data-days="7">Last 7 days</button>
+                            <button class="preset-btn" data-days="30">Last 30 days</button>
+                            <button class="preset-btn" data-days="90">Last 3 months</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="search-results-count" id="search-results"></div>
             </div>
