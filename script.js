@@ -506,6 +506,11 @@ function createPostElement(post, index, isSearch = false) {
     // Create the post link if available
     const postLink = post.link || '#';
     
+    // Get post type and create type indicator
+    const postType = post.type || 'Post';
+    const typeClass = postType.toLowerCase();
+    const typeIcon = postType === 'Reply' ? 'reply' : (postType === 'Repost' ? 'repeat' : 'edit_note');
+    
     postDiv.innerHTML = `
         <div class="post-avatar">
             <img src="profile.png" alt="Profile" />
@@ -515,14 +520,17 @@ function createPostElement(post, index, isSearch = false) {
                 <span class="handle">${highlightedHandle}</span>
                 <div class="separator"></div>
                 <a href="${postLink}" target="_blank" rel="noopener noreferrer" class="date" title="${fullDate}">${formattedDate}</a>
-            </div>
-            <div class="text">${highlightedText}</div>
-            <div class="post-actions">
-                <a href="${postLink}" target="_blank" rel="noopener noreferrer" class="post-link" title="View post on X">
+                <div class="separator"></div>
+                <span class="post-type ${typeClass}">
+                    <span class="material-symbols-outlined">${typeIcon}</span>
+                    <span>${postType}</span>
+                </span>
+                <div class="separator"></div>
+                <a href="${postLink}" target="_blank" rel="noopener noreferrer" class="post-link-inline" title="View post on X">
                     <span class="material-symbols-outlined">open_in_new</span>
-                    <span>View on X</span>
                 </a>
             </div>
+            <div class="text">${highlightedText}</div>
         </div>
     `;
     
@@ -813,10 +821,26 @@ function addSmoothScrolling() {
     document.documentElement.style.scrollBehavior = 'smooth';
 }
 
+// Handle responsive placeholder text
+function updateSearchPlaceholder() {
+    const searchInput = document.getElementById('search-input');
+    const isMobile = window.innerWidth <= 768;
+    
+    if (isMobile) {
+        searchInput.placeholder = "Search posts...";
+    } else {
+        searchInput.placeholder = "Search posts (try: 'rent freeze', 'childcare', 'buses')...";
+    }
+}
+
 // Initialize the application
 function init() {
     addSmoothScrolling();
     loadPosts();
+    updateSearchPlaceholder();
+    
+    // Update placeholder on window resize
+    window.addEventListener('resize', updateSearchPlaceholder);
 }
 
 // Start the application when DOM is loaded

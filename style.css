@@ -538,6 +538,61 @@ body {
     flex-wrap: wrap;
 }
 
+.post .post-type {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid;
+}
+
+.post .post-type .material-symbols-outlined {
+    font-size: 14px;
+}
+
+.post .post-type.post {
+    background-color: rgba(29, 161, 242, 0.1);
+    color: var(--primary-color);
+    border-color: rgba(29, 161, 242, 0.3);
+}
+
+.post .post-type.reply {
+    background-color: rgba(255, 165, 0, 0.1);
+    color: #ff8c00;
+    border-color: rgba(255, 165, 0, 0.3);
+}
+
+.post .post-type.repost {
+    background-color: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+.post .post-link-inline {
+    color: var(--text-secondary);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+    padding: 2px;
+    border-radius: var(--radius-sm);
+}
+
+.post .post-link-inline:hover {
+    color: var(--primary-color);
+    background-color: rgba(29, 161, 242, 0.1);
+    transform: scale(1.1);
+}
+
+.post .post-link-inline .material-symbols-outlined {
+    font-size: 16px;
+}
+
 .post .handle {
     font-weight: 700;
     color: var(--text-primary);
@@ -628,48 +683,7 @@ body {
 
 
 
-.post .post-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 12px;
-    padding-top: 8px;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    border-top: 1px solid transparent;
-}
-
-.post:hover .post-actions {
-    opacity: 1;
-    border-top: 1px solid var(--border-color);
-}
-
-.post .post-link {
-    color: var(--text-secondary);
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    padding: 6px 12px;
-    border-radius: var(--radius-full);
-    transition: all 0.2s ease;
-    font-weight: 500;
-    background-color: transparent;
-    border: 1px solid var(--border-color);
-}
-
-.post .post-link:hover {
-    color: var(--primary-color);
-    background-color: rgba(29, 161, 242, 0.1);
-    border-color: var(--primary-color);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.post .post-link .material-symbols-outlined {
-    font-size: 16px;
-}
+/* Removed old post-actions styles - no longer needed */
 
 /* Footer */
 .footer {
