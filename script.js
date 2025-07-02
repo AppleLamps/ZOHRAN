@@ -837,10 +837,491 @@ function updateSearchPlaceholder() {
 function init() {
     addSmoothScrolling();
     loadPosts();
+    initializeSearch();
+    initializeDateFilter();
     updateSearchPlaceholder();
+    initializeTabSwitching();
+    initializeDonorDatabase();
     
     // Update placeholder on window resize
     window.addEventListener('resize', updateSearchPlaceholder);
+}
+
+// ===== DONOR DATABASE FUNCTIONALITY =====
+
+// Donor database variables
+let allDonors = [];
+let filteredDonors = [];
+let currentDonorSearchTerm = '';
+let currentFilters = {
+    amount: '',
+    borough: '',
+    intermediary: '',
+    sort: 'date-desc'
+};
+
+// Initialize tab switching
+function initializeTabSwitching() {
+    const navLinks = document.querySelectorAll('.nav-link');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const targetTab = link.getAttribute('data-tab');
+            
+            // Update active nav link
+            navLinks.forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            
+            // Show target tab content
+            tabContents.forEach(tab => {
+                if (tab.id === `${targetTab}-tab`) {
+                    tab.style.display = 'block';
+                } else {
+                    tab.style.display = 'none';
+                }
+            });
+            
+            // Load donor data if switching to donors tab
+            if (targetTab === 'donors' && allDonors.length === 0) {
+                loadDonorData();
+            }
+        });
+    });
+}
+
+// Initialize donor database
+function initializeDonorDatabase() {
+    // Search functionality
+    const donorSearchInput = document.getElementById('donors-search-input');
+    const clearDonorSearch = document.getElementById('clear-donors-search');
+    
+    if (donorSearchInput) {
+        donorSearchInput.addEventListener('input', debounce(handleDonorSearch, 300));
+    }
+    
+    if (clearDonorSearch) {
+        clearDonorSearch.addEventListener('click', clearDonorSearchHandler);
+    }
+    
+    // Filter functionality
+    const filters = ['amount-filter', 'borough-filter', 'intermediary-filter', 'sort-filter'];
+    filters.forEach(filterId => {
+        const filterElement = document.getElementById(filterId);
+        if (filterElement) {
+            filterElement.addEventListener('change', handleDonorFilters);
+        }
+    });
+    
+    // Reset filters functionality
+    const resetFiltersBtn = document.getElementById('reset-filters');
+    if (resetFiltersBtn) {
+        resetFiltersBtn.addEventListener('click', resetAllFilters);
+    }
+}
+
+// Load donor data from JSON
+async function loadDonorData() {
+    const donorLoading = document.getElementById('donors-loading');
+    const donorContainer = document.getElementById('donors-container');
+    const donorEmptyState = document.getElementById('donors-empty-state');
+    
+    try {
+        donorLoading.style.display = 'flex';
+        donorContainer.style.display = 'none';
+        donorEmptyState.style.display = 'none';
+        
+        const response = await fetch('zohran-donor.json');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        allDonors = await response.json();
+        
+        // Process and clean the data
+        allDonors = allDonors.map((donor, index) => ({
+            ...donor,
+            id: index,
+            // Clean and parse numeric values
+            DONATION: parseFloat(donor.DONATION) || 0,
+            'MATCH-AMOUNT': parseFloat(donor['MATCH-AMOUNT']) || 0,
+            // Parse date
+            donationDate: parseDonorDate(donor['DATE OF DONATION']),
+            // Check if via intermediary
+            hasIntermediary: !!(donor.INTERMEDIARY_NAME && donor.INTERMEDIARY_NAME.trim())
+        }));
+        
+        filteredDonors = [...allDonors];
+        
+        updateDonorAnalytics();
+        displayDonors();
+        
+    } catch (error) {
+        console.error('Error loading donor data:', error);
+        showDonorError('Failed to load donor data. Please try again later.');
+    } finally {
+        donorLoading.style.display = 'none';
+    }
+}
+
+// Parse date in various formats
+function parseDonorDate(dateString) {
+    if (!dateString) return null;
+    
+    // Try different date formats
+    const formats = [
+        /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,  // M/D/YYYY
+        /^(\d{4})-(\d{2})-(\d{2})$/,        // YYYY-MM-DD
+        /^(\d{2})-(\d{2})-(\d{4})$/         // MM-DD-YYYY
+    ];
+    
+    for (let format of formats) {
+        const match = dateString.match(format);
+        if (match) {
+            if (format === formats[0]) { // M/D/YYYY
+                return new Date(match[3], match[1] - 1, match[2]);
+            } else if (format === formats[1]) { // YYYY-MM-DD
+                return new Date(match[1], match[2] - 1, match[3]);
+            } else if (format === formats[2]) { // MM-DD-YYYY
+                return new Date(match[3], match[1] - 1, match[2]);
+            }
+        }
+    }
+    
+    // Fallback to Date constructor
+    const parsed = new Date(dateString);
+    return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+// Update analytics dashboard
+function updateDonorAnalytics() {
+    const totalDonations = allDonors.reduce((sum, donor) => sum + donor.DONATION, 0);
+    const totalDonors = allDonors.length;
+    const intermediaryDonations = allDonors
+        .filter(donor => donor.hasIntermediary)
+        .reduce((sum, donor) => sum + donor.DONATION, 0);
+    const averageDonation = totalDonors > 0 ? totalDonations / totalDonors : 0;
+    
+    // Update analytics display
+    document.getElementById('total-donations').textContent = formatCurrency(totalDonations);
+    document.getElementById('total-donors').textContent = totalDonors.toLocaleString();
+    document.getElementById('intermediary-donations').textContent = formatCurrency(intermediaryDonations);
+    document.getElementById('average-donation').textContent = formatCurrency(averageDonation);
+    
+    // Update donors count
+    document.getElementById('donors-count').textContent = 
+        `${filteredDonors.length.toLocaleString()} of ${totalDonors.toLocaleString()} donors`;
+    
+    // Update reset button state when analytics are updated
+    updateResetButtonState();
+}
+
+// Format currency
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(amount);
+}
+
+// Handle donor search
+function handleDonorSearch() {
+    const searchInput = document.getElementById('donors-search-input');
+    currentDonorSearchTerm = searchInput.value.trim();
+    applyDonorFilters();
+}
+
+// Clear donor search
+function clearDonorSearchHandler() {
+    const searchInput = document.getElementById('donors-search-input');
+    searchInput.value = '';
+    currentDonorSearchTerm = '';
+    applyDonorFilters();
+}
+
+// Handle donor filters
+function handleDonorFilters() {
+    currentFilters.amount = document.getElementById('amount-filter').value;
+    currentFilters.borough = document.getElementById('borough-filter').value;
+    currentFilters.intermediary = document.getElementById('intermediary-filter').value;
+    currentFilters.sort = document.getElementById('sort-filter').value;
+    
+    applyDonorFilters();
+}
+
+// Apply all donor filters
+function applyDonorFilters() {
+    filteredDonors = [...allDonors];
+    
+    // Apply search filter
+    if (currentDonorSearchTerm) {
+        const searchTerms = processSearchTerms(currentDonorSearchTerm);
+        filteredDonors = filteredDonors.filter(donor => {
+            const searchableText = normalizeText([
+                donor.NAME || '',
+                donor.CITY || '',
+                donor.STATE || '',
+                donor.EMPCITY || '',
+                donor.EMPSTATE || '',
+                donor.INTERMEDIARY_NAME || ''
+            ].join(' '));
+            
+            return searchTerms.every(term => {
+                return searchableText.includes(term.original) ||
+                       searchableText.includes(term.stemmed);
+            });
+        });
+    }
+    
+    // Apply amount filter
+    if (currentFilters.amount) {
+        filteredDonors = filteredDonors.filter(donor => {
+            const amount = donor.DONATION;
+            switch (currentFilters.amount) {
+                case '0-25': return amount >= 0 && amount <= 25;
+                case '25-100': return amount > 25 && amount <= 100;
+                case '100-500': return amount > 100 && amount <= 500;
+                case '500+': return amount > 500;
+                default: return true;
+            }
+        });
+    }
+    
+    // Apply borough filter
+    if (currentFilters.borough) {
+        filteredDonors = filteredDonors.filter(donor => 
+            donor.BOROUGHCD === currentFilters.borough
+        );
+    }
+    
+    // Apply intermediary filter
+    if (currentFilters.intermediary) {
+        if (currentFilters.intermediary === 'yes') {
+            filteredDonors = filteredDonors.filter(donor => donor.hasIntermediary);
+        } else if (currentFilters.intermediary === 'no') {
+            filteredDonors = filteredDonors.filter(donor => !donor.hasIntermediary);
+        }
+    }
+    
+    // Apply sorting
+    filteredDonors.sort((a, b) => {
+        switch (currentFilters.sort) {
+            case 'date-desc':
+                return (b.donationDate || 0) - (a.donationDate || 0);
+            case 'date-asc':
+                return (a.donationDate || 0) - (b.donationDate || 0);
+            case 'amount-desc':
+                return b.DONATION - a.DONATION;
+            case 'amount-asc':
+                return a.DONATION - b.DONATION;
+            case 'name-asc':
+                return (a.NAME || '').localeCompare(b.NAME || '');
+            case 'name-desc':
+                return (b.NAME || '').localeCompare(a.NAME || '');
+            default:
+                return 0;
+        }
+    });
+    
+    updateDonorSearchResults();
+    displayDonors();
+}
+
+// Update search results display
+function updateDonorSearchResults() {
+    const resultsElement = document.getElementById('donors-search-results');
+    const total = allDonors.length;
+    const filtered = filteredDonors.length;
+    
+    if (currentDonorSearchTerm || Object.values(currentFilters).some(v => v && v !== 'date-desc')) {
+        resultsElement.textContent = `Showing ${filtered.toLocaleString()} of ${total.toLocaleString()} donors`;
+    } else {
+        resultsElement.textContent = `${total.toLocaleString()} total donors`;
+    }
+    
+    // Update donors count
+    document.getElementById('donors-count').textContent = 
+        `${filtered.toLocaleString()} of ${total.toLocaleString()} donors`;
+    
+    // Update reset button state
+    updateResetButtonState();
+}
+
+// Update reset button state based on active filters
+function updateResetButtonState() {
+    const resetBtn = document.getElementById('reset-filters');
+    if (!resetBtn) return;
+    
+    const hasActiveFilters = currentDonorSearchTerm || 
+        Object.values(currentFilters).some(v => v && v !== 'date-desc');
+    
+    resetBtn.disabled = !hasActiveFilters;
+    
+    if (hasActiveFilters) {
+        resetBtn.textContent = '';
+        resetBtn.innerHTML = `
+            <span class="material-symbols-outlined">restart_alt</span>
+            Reset Filters
+        `;
+    } else {
+        resetBtn.textContent = '';
+        resetBtn.innerHTML = `
+            <span class="material-symbols-outlined">restart_alt</span>
+            No Active Filters
+        `;
+    }
+}
+
+// Display donors
+function displayDonors() {
+    const container = document.getElementById('donors-container');
+    const emptyState = document.getElementById('donors-empty-state');
+    
+    if (filteredDonors.length === 0) {
+        container.style.display = 'none';
+        emptyState.style.display = 'flex';
+        return;
+    }
+    
+    container.style.display = 'block';
+    emptyState.style.display = 'none';
+    
+    // Display first 50 donors (implement pagination later if needed)
+    const donorsToShow = filteredDonors.slice(0, 50);
+    
+    container.innerHTML = donorsToShow.map(donor => createDonorCard(donor)).join('');
+}
+
+// Create donor card HTML
+function createDonorCard(donor) {
+    const borough = getBoroughName(donor.BOROUGHCD);
+    const donationDate = donor.donationDate ? 
+        donor.donationDate.toLocaleDateString() : 
+        donor['DATE OF DONATION'] || 'Unknown';
+    
+    const searchHighlight = currentDonorSearchTerm ? 
+        (text) => highlightSearchTerm(text || '', currentDonorSearchTerm) : 
+        (text) => escapeHTML(text || '');
+    
+    return `
+        <div class="donor-card">
+            <div class="donor-header">
+                <div>
+                    <div class="donor-name">${searchHighlight(donor.NAME)}</div>
+                    <div class="donor-location">
+                        <span class="material-symbols-outlined">location_on</span>
+                        ${searchHighlight(donor.CITY)}, ${donor.STATE} ${donor.ZIP}
+                        ${borough ? ` (${borough})` : ''}
+                    </div>
+                </div>
+                <div class="donor-amount">
+                    ${formatCurrency(donor.DONATION)}
+                    ${donor['MATCH-AMOUNT'] > 0 ? ` (+$${donor['MATCH-AMOUNT']} match)` : ''}
+                </div>
+            </div>
+            
+            <div class="donor-details">
+                ${donor.EMPCITY ? `
+                    <div class="donor-detail">
+                        <div class="donor-detail-label">Employment</div>
+                        <div class="donor-detail-value">${searchHighlight(donor.EMPCITY)}, ${donor.EMPSTATE}</div>
+                    </div>
+                ` : ''}
+                
+                <div class="donor-detail">
+                    <div class="donor-detail-label">Payment Method</div>
+                    <div class="donor-detail-value">${getPaymentMethod(donor.PAY_METHOD)}</div>
+                </div>
+                
+                ${donor['PREVIOUS DONATION'] > 0 ? `
+                    <div class="donor-detail">
+                        <div class="donor-detail-label">Previous Donations</div>
+                        <div class="donor-detail-value">$${donor['PREVIOUS DONATION']}</div>
+                    </div>
+                ` : ''}
+            </div>
+            
+            <div class="donor-footer">
+                <div class="donor-date">${donationDate}</div>
+                ${donor.hasIntermediary ? `
+                    <div class="donor-intermediary">
+                        <span class="material-symbols-outlined">account_balance</span>
+                        Via ${searchHighlight(donor.INTERMEDIARY_NAME)}
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// Get borough name from code
+function getBoroughName(code) {
+    const boroughs = {
+        'M': 'Manhattan',
+        'K': 'Brooklyn', 
+        'Q': 'Queens',
+        'X': 'Bronx',
+        'R': 'Staten Island'
+    };
+    return boroughs[code] || '';
+}
+
+// Get payment method description
+function getPaymentMethod(code) {
+    const methods = {
+        '1': 'Cash',
+        '2': 'Check',
+        '3': 'Credit Card',
+        '4': 'Online/Electronic',
+        '5': 'Money Order',
+        '6': 'Other'
+    };
+    return methods[code] || 'Unknown';
+}
+
+// Reset all filters
+function resetAllFilters() {
+    // Clear search input
+    const searchInput = document.getElementById('donors-search-input');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    
+    // Reset all filter dropdowns to default values
+    document.getElementById('amount-filter').value = '';
+    document.getElementById('borough-filter').value = '';
+    document.getElementById('intermediary-filter').value = '';
+    document.getElementById('sort-filter').value = 'date-desc';
+    
+    // Clear current filter state
+    currentDonorSearchTerm = '';
+    currentFilters = {
+        amount: '',
+        borough: '',
+        intermediary: '',
+        sort: 'date-desc'
+    };
+    
+    // Reapply filters (which will show all donors)
+    applyDonorFilters();
+    
+    // Update reset button state
+    updateResetButtonState();
+}
+
+// Show donor error
+function showDonorError(message) {
+    const container = document.getElementById('donors-container');
+    container.innerHTML = `
+        <div class="donors-empty-state" style="display: flex;">
+            <span class="material-symbols-outlined">error</span>
+            <h2>Error Loading Donors</h2>
+            <p>${escapeHTML(message)}</p>
+        </div>
+    `;
 }
 
 // Start the application when DOM is loaded

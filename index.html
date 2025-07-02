@@ -43,90 +43,230 @@
             </div>
         </div>
         <nav class="profile-nav">
-            <a href="#" class="nav-link active">Posts</a>
+            <a href="#" class="nav-link active" data-tab="posts">Posts</a>
+            <a href="#" class="nav-link" data-tab="donors">Donors</a>
         </nav>
     </div>
 
     <main class="main-content">
-        <div class="search-section" id="search-section">
-            <div class="search-container">
-                <div id="post-count" class="post-count"></div>
-                <div class="search-input-wrapper">
-                    <span class="material-symbols-outlined search-icon">search</span>
-                    <input type="text" id="search-input" class="search-input" placeholder="Search posts (try: 'rent freeze', 'childcare', 'buses')..." />
-                    <button id="clear-search" class="clear-button">
-                        <span class="material-symbols-outlined">close</span>
-                    </button>
-                    <button id="search-help" class="search-help-button" title="Search Help">
-                        <span class="material-symbols-outlined">help</span>
-                    </button>
-                </div>
-                <div class="search-help-panel" id="search-help-panel">
-                    <div class="search-help-content">
-                        <h4>Enhanced Search Features</h4>
-                        <ul>
-                            <li><strong>Match All Words:</strong> All words must be found (AND logic)</li>
-                            <li><strong>Partial Matching:</strong> "child" matches "childcare"</li>
-                            <li><strong>Word Variations:</strong> "running" matches "run", "ran" (stemming)</li>
-                            <li><strong>Search All Fields:</strong> Text, username, and other post data</li>
-                            <li><strong>Smart Highlighting:</strong> All matches highlighted</li>
-                            <li><strong>Exact Matching:</strong> Precise results without fuzzy approximations</li>
-                        </ul>
-                        <p><em>Stopwords like "the", "and", "of" are automatically ignored.</em></p>
-                    </div>
-                </div>
-                <div class="date-filter-section">
-                    <div class="date-filter-header">
-                        <span class="material-symbols-outlined">date_range</span>
-                        <span>Filter by date</span>
-                        <button id="toggle-date-filter" class="toggle-button">
-                            <span class="material-symbols-outlined">expand_more</span>
+        <!-- Posts Tab Content -->
+        <div class="tab-content" id="posts-tab" style="display: block;">
+            <div class="search-section" id="search-section">
+                <div class="search-container">
+                    <div id="post-count" class="post-count"></div>
+                    <div class="search-input-wrapper">
+                        <span class="material-symbols-outlined search-icon">search</span>
+                        <input type="text" id="search-input" class="search-input" placeholder="Search posts (try: 'rent freeze', 'childcare', 'buses')..." />
+                        <button id="clear-search" class="clear-button">
+                            <span class="material-symbols-outlined">close</span>
+                        </button>
+                        <button id="search-help" class="search-help-button" title="Search Help">
+                            <span class="material-symbols-outlined">help</span>
                         </button>
                     </div>
-                    <div class="date-filter-controls" id="date-filter-controls">
-                        <div class="date-inputs">
-                            <div class="date-input-group">
-                                <label for="start-date">From:</label>
-                                <input type="date" id="start-date" class="date-input" />
-                            </div>
-                            <div class="date-input-group">
-                                <label for="end-date">To:</label>
-                                <input type="date" id="end-date" class="date-input" />
-                            </div>
-                        </div>
-                        <div class="date-filter-actions">
-                            <button id="apply-date-filter" class="apply-filter-btn">Apply Filter</button>
-                            <button id="clear-date-filter" class="clear-filter-btn">Clear</button>
-                        </div>
-                        <div class="date-presets">
-                            <button class="preset-btn" data-days="7">Last 7 days</button>
-                            <button class="preset-btn" data-days="30">Last 30 days</button>
-                            <button class="preset-btn" data-days="90">Last 3 months</button>
+                    <div class="search-help-panel" id="search-help-panel">
+                        <div class="search-help-content">
+                            <h4>Enhanced Search Features</h4>
+                            <ul>
+                                <li><strong>Match All Words:</strong> All words must be found (AND logic)</li>
+                                <li><strong>Partial Matching:</strong> "child" matches "childcare"</li>
+                                <li><strong>Word Variations:</strong> "running" matches "run", "ran" (stemming)</li>
+                                <li><strong>Search All Fields:</strong> Text, username, and other post data</li>
+                                <li><strong>Smart Highlighting:</strong> All matches highlighted</li>
+                                <li><strong>Exact Matching:</strong> Precise results without fuzzy approximations</li>
+                            </ul>
+                            <p><em>Stopwords like "the", "and", "of" are automatically ignored.</em></p>
                         </div>
                     </div>
+                    <div class="date-filter-section">
+                        <div class="date-filter-header">
+                            <span class="material-symbols-outlined">date_range</span>
+                            <span>Filter by date</span>
+                            <button id="toggle-date-filter" class="toggle-button">
+                                <span class="material-symbols-outlined">expand_more</span>
+                            </button>
+                        </div>
+                        <div class="date-filter-controls" id="date-filter-controls">
+                            <div class="date-inputs">
+                                <div class="date-input-group">
+                                    <label for="start-date">From:</label>
+                                    <input type="date" id="start-date" class="date-input" />
+                                </div>
+                                <div class="date-input-group">
+                                    <label for="end-date">To:</label>
+                                    <input type="date" id="end-date" class="date-input" />
+                                </div>
+                            </div>
+                            <div class="date-filter-actions">
+                                <button id="apply-date-filter" class="apply-filter-btn">Apply Filter</button>
+                                <button id="clear-date-filter" class="clear-filter-btn">Clear</button>
+                            </div>
+                            <div class="date-presets">
+                                <button class="preset-btn" data-days="7">Last 7 days</button>
+                                <button class="preset-btn" data-days="30">Last 30 days</button>
+                                <button class="preset-btn" data-days="90">Last 3 months</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="search-results-count" id="search-results"></div>
                 </div>
-                <div class="search-results-count" id="search-results"></div>
+            </div>
+
+            <div class="loading-spinner" id="loading">
+                <div class="spinner"></div>
+                <p>Loading posts...</p>
+            </div>
+            
+            <div class="posts-grid" id="posts-container">
+                <!-- Posts will be dynamically inserted here -->
+            </div>
+            
+            <div class="infinite-loading" id="infinite-loading">
+                <div class="spinner-small"></div>
+                <p>Loading more posts...</p>
+            </div>
+            
+            <div class="empty-state" id="empty-state">
+                <span class="material-symbols-outlined">inbox</span>
+                <h2>No posts found</h2>
+                <p>There are no posts to display at the moment.</p>
             </div>
         </div>
 
-        <div class="loading-spinner" id="loading">
-            <div class="spinner"></div>
-            <p>Loading posts...</p>
-        </div>
-        
-        <div class="posts-grid" id="posts-container">
-            <!-- Posts will be dynamically inserted here -->
-        </div>
-        
-        <div class="infinite-loading" id="infinite-loading">
-            <div class="spinner-small"></div>
-            <p>Loading more posts...</p>
-        </div>
-        
-        <div class="empty-state" id="empty-state">
-            <span class="material-symbols-outlined">inbox</span>
-            <h2>No posts found</h2>
-            <p>There are no posts to display at the moment.</p>
+        <!-- Donors Tab Content -->
+        <div class="tab-content" id="donors-tab" style="display: none;">
+            <div class="donors-header">
+                <div class="donors-title">
+                    <h2>Campaign Donors Database</h2>
+                    <div class="donors-count" id="donors-count">Loading...</div>
+                </div>
+                
+                <!-- Analytics Dashboard -->
+                <div class="analytics-dashboard">
+                    <div class="analytics-cards">
+                        <div class="analytics-card">
+                            <div class="analytics-icon">
+                                <span class="material-symbols-outlined">payments</span>
+                            </div>
+                            <div class="analytics-content">
+                                <div class="analytics-value" id="total-donations">$0</div>
+                                <div class="analytics-label">Total Donations</div>
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-icon">
+                                <span class="material-symbols-outlined">groups</span>
+                            </div>
+                            <div class="analytics-content">
+                                <div class="analytics-value" id="total-donors">0</div>
+                                <div class="analytics-label">Total Donors</div>
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-icon">
+                                <span class="material-symbols-outlined">account_balance</span>
+                            </div>
+                            <div class="analytics-content">
+                                <div class="analytics-value" id="intermediary-donations">$0</div>
+                                <div class="analytics-label">Via Intermediaries</div>
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-icon">
+                                <span class="material-symbols-outlined">trending_up</span>
+                            </div>
+                            <div class="analytics-content">
+                                <div class="analytics-value" id="average-donation">$0</div>
+                                <div class="analytics-label">Average Donation</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search and Filters -->
+            <div class="donors-search-section">
+                <div class="donors-search-container">
+                    <div class="donors-search-wrapper">
+                        <span class="material-symbols-outlined search-icon">search</span>
+                        <input type="text" id="donors-search-input" class="donors-search-input" placeholder="Search donors by name, city, employer..." />
+                        <button id="clear-donors-search" class="clear-button">
+                            <span class="material-symbols-outlined">close</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Filters -->
+                    <div class="donors-filters">
+                        <div class="filter-group">
+                            <label for="amount-filter">Amount Range:</label>
+                            <select id="amount-filter" class="filter-select">
+                                <option value="">All amounts</option>
+                                <option value="0-25">$0 - $25</option>
+                                <option value="25-100">$25 - $100</option>
+                                <option value="100-500">$100 - $500</option>
+                                <option value="500+">$500+</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="borough-filter">Borough:</label>
+                            <select id="borough-filter" class="filter-select">
+                                <option value="">All boroughs</option>
+                                <option value="M">Manhattan</option>
+                                <option value="K">Brooklyn</option>
+                                <option value="Q">Queens</option>
+                                <option value="X">Bronx</option>
+                                <option value="R">Staten Island</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="intermediary-filter">Via Intermediary:</label>
+                            <select id="intermediary-filter" class="filter-select">
+                                <option value="">All donations</option>
+                                <option value="yes">Via intermediary only</option>
+                                <option value="no">Direct donations only</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="sort-filter">Sort by:</label>
+                            <select id="sort-filter" class="filter-select">
+                                <option value="date-desc">Date (newest first)</option>
+                                <option value="date-asc">Date (oldest first)</option>
+                                <option value="amount-desc">Amount (highest first)</option>
+                                <option value="amount-asc">Amount (lowest first)</option>
+                                <option value="name-asc">Name (A-Z)</option>
+                                <option value="name-desc">Name (Z-A)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="donors-results-info">
+                        <div id="donors-search-results" class="search-results-count"></div>
+                        <button id="reset-filters" class="reset-filters-btn">
+                            <span class="material-symbols-outlined">restart_alt</span>
+                            Reset Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Donors List -->
+            <div class="donors-loading" id="donors-loading">
+                <div class="spinner"></div>
+                <p>Loading donor data...</p>
+            </div>
+            
+            <div class="donors-grid" id="donors-container">
+                <!-- Donors will be dynamically inserted here -->
+            </div>
+            
+            <div class="donors-empty-state" id="donors-empty-state" style="display: none;">
+                <span class="material-symbols-outlined">search_off</span>
+                <h2>No donors found</h2>
+                <p>Try adjusting your search criteria or filters.</p>
+            </div>
         </div>
     </main>
 
