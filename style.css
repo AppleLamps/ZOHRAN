@@ -1303,6 +1303,62 @@ button:focus {
     color: var(--text-secondary);
 }
 
+/* Filters Toggle Button */
+.filters-toggle-section {
+    display: none; /* Hidden by default, shown on mobile */
+}
+
+.filters-toggle-button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background-color: var(--secondary-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filters-toggle-button:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--primary-color);
+}
+
+.filters-toggle-button .material-symbols-outlined:first-child {
+    font-size: 20px;
+    color: var(--primary-color);
+}
+
+.filters-toggle-button .toggle-icon {
+    font-size: 20px;
+    transition: transform 0.2s ease;
+}
+
+.filters-toggle-button.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+/* Collapsible Filters Container */
+.donors-filters-container {
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+}
+
+.donors-filters-container.collapsed {
+    max-height: 0;
+    opacity: 0;
+}
+
+.donors-filters-container.expanded {
+    max-height: 1000px; /* Large enough to accommodate all filters */
+    opacity: 1;
+}
+
 /* Donors Filters */
 .donors-filters {
     display: grid;
@@ -1548,8 +1604,20 @@ button:focus {
         grid-template-columns: repeat(2, 1fr);
     }
     
+    /* Show filters toggle button on mobile */
+    .filters-toggle-section {
+        display: block !important;
+    }
+
+    /* Initially collapse filters on mobile */
+    .donors-filters-container {
+        max-height: 0;
+        opacity: 0;
+    }
+
     .donors-filters {
         grid-template-columns: 1fr;
+        padding-top: 16px;
     }
     
     .donors-results-info {

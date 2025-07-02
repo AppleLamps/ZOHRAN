@@ -195,59 +195,70 @@
                         </button>
                     </div>
                     
-                    <!-- Filters -->
-                    <div class="donors-filters">
-                        <div class="filter-group">
-                            <label for="amount-filter">Amount Range:</label>
-                            <select id="amount-filter" class="filter-select">
-                                <option value="">All amounts</option>
-                                <option value="0-25">$0 - $25</option>
-                                <option value="25-100">$25 - $100</option>
-                                <option value="100-500">$100 - $500</option>
-                                <option value="500+">$500+</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="borough-filter">Borough:</label>
-                            <select id="borough-filter" class="filter-select">
-                                <option value="">All boroughs</option>
-                                <option value="M">Manhattan</option>
-                                <option value="K">Brooklyn</option>
-                                <option value="Q">Queens</option>
-                                <option value="X">Bronx</option>
-                                <option value="R">Staten Island</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="intermediary-filter">Via Intermediary:</label>
-                            <select id="intermediary-filter" class="filter-select">
-                                <option value="">All donations</option>
-                                <option value="yes">Via intermediary only</option>
-                                <option value="no">Direct donations only</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="sort-filter">Sort by:</label>
-                            <select id="sort-filter" class="filter-select">
-                                <option value="date-desc">Date (newest first)</option>
-                                <option value="date-asc">Date (oldest first)</option>
-                                <option value="amount-desc">Amount (highest first)</option>
-                                <option value="amount-asc">Amount (lowest first)</option>
-                                <option value="name-asc">Name (A-Z)</option>
-                                <option value="name-desc">Name (Z-A)</option>
-                            </select>
-                        </div>
+                    <!-- Filters Toggle Button -->
+                    <div class="filters-toggle-section">
+                        <button id="toggle-donor-filters" class="filters-toggle-button">
+                            <span class="material-symbols-outlined">tune</span>
+                            <span>Filters</span>
+                            <span class="material-symbols-outlined toggle-icon">expand_more</span>
+                        </button>
                     </div>
                     
-                    <div class="donors-results-info">
-                        <div id="donors-search-results" class="search-results-count"></div>
-                        <button id="reset-filters" class="reset-filters-btn">
-                            <span class="material-symbols-outlined">restart_alt</span>
-                            Reset Filters
-                        </button>
+                    <!-- Collapsible Filters -->
+                    <div class="donors-filters-container" id="donors-filters-container">
+                        <div class="donors-filters">
+                            <div class="filter-group">
+                                <label for="amount-filter">Amount Range:</label>
+                                <select id="amount-filter" class="filter-select">
+                                    <option value="">All amounts</option>
+                                    <option value="0-25">$0 - $25</option>
+                                    <option value="25-100">$25 - $100</option>
+                                    <option value="100-500">$100 - $500</option>
+                                    <option value="500+">$500+</option>
+                                </select>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <label for="borough-filter">Borough:</label>
+                                <select id="borough-filter" class="filter-select">
+                                    <option value="">All boroughs</option>
+                                    <option value="M">Manhattan</option>
+                                    <option value="K">Brooklyn</option>
+                                    <option value="Q">Queens</option>
+                                    <option value="X">Bronx</option>
+                                    <option value="R">Staten Island</option>
+                                </select>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <label for="intermediary-filter">Via Intermediary:</label>
+                                <select id="intermediary-filter" class="filter-select">
+                                    <option value="">All donations</option>
+                                    <option value="yes">Via intermediary only</option>
+                                    <option value="no">Direct donations only</option>
+                                </select>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <label for="sort-filter">Sort by:</label>
+                                <select id="sort-filter" class="filter-select">
+                                    <option value="date-desc">Date (newest first)</option>
+                                    <option value="date-asc">Date (oldest first)</option>
+                                    <option value="amount-desc">Amount (highest first)</option>
+                                    <option value="amount-asc">Amount (lowest first)</option>
+                                    <option value="name-asc">Name (A-Z)</option>
+                                    <option value="name-desc">Name (Z-A)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="donors-results-info">
+                            <div id="donors-search-results" class="search-results-count"></div>
+                            <button id="reset-filters" class="reset-filters-btn">
+                                <span class="material-symbols-outlined">restart_alt</span>
+                                Reset Filters
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -919,6 +919,56 @@ function initializeDonorDatabase() {
     if (resetFiltersBtn) {
         resetFiltersBtn.addEventListener('click', resetAllFilters);
     }
+    
+    // Initialize filters toggle functionality
+    initializeFiltersToggle();
+}
+
+// Initialize filters toggle functionality
+function initializeFiltersToggle() {
+    const toggleButton = document.getElementById('toggle-donor-filters');
+    const filtersContainer = document.getElementById('donors-filters-container');
+    
+    if (toggleButton && filtersContainer) {
+        toggleButton.addEventListener('click', () => {
+            const isExpanded = toggleButton.classList.contains('expanded');
+            
+            if (isExpanded) {
+                // Collapse filters
+                toggleButton.classList.remove('expanded');
+                filtersContainer.classList.remove('expanded');
+                filtersContainer.classList.add('collapsed');
+            } else {
+                // Expand filters
+                toggleButton.classList.add('expanded');
+                filtersContainer.classList.remove('collapsed');
+                filtersContainer.classList.add('expanded');
+            }
+        });
+        
+        // Set initial state on mobile
+        if (window.innerWidth <= 768) {
+            filtersContainer.classList.add('collapsed');
+        } else {
+            filtersContainer.classList.add('expanded');
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                // On desktop, always show filters
+                filtersContainer.classList.remove('collapsed');
+                filtersContainer.classList.add('expanded');
+                toggleButton.classList.remove('expanded');
+            } else {
+                // On mobile, respect the current toggle state
+                if (!toggleButton.classList.contains('expanded')) {
+                    filtersContainer.classList.add('collapsed');
+                    filtersContainer.classList.remove('expanded');
+                }
+            }
+        });
+    }
 }
 
 // Load donor data from JSON
