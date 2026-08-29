@@ -172,73 +172,96 @@ function enhancedSearch(posts, searchTerms) {
     });
 }
 
+// Decode HTML entities from archived post text (e.g. &amp; -> &)
+function decodeHTMLEntities(str) {
+    if (typeof str !== 'string' || str.length === 0) return '';
+    return str
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'")
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10)));
+}
+
+function mergeHighlightRanges(ranges) {
+    if (!ranges.length) return [];
+    ranges.sort((a, b) => a.start - b.start);
+    const merged = [];
+    ranges.forEach(range => {
+        const last = merged[merged.length - 1];
+        if (last && range.start <= last.end) {
+            last.end = Math.max(last.end, range.end);
+        } else {
+            merged.push({ start: range.start, end: range.end });
+        }
+    });
+    return merged;
+}
+
+function applyHighlights(text, ranges) {
+    const merged = mergeHighlightRanges(ranges);
+    if (!merged.length) return escapeHTML(text);
+
+    let html = '';
+    let cursor = 0;
+    merged.forEach(({ start, end }) => {
+        const safeStart = Math.max(0, Math.min(start, text.length));
+        const safeEnd = Math.max(safeStart, Math.min(end, text.length));
+        html += escapeHTML(text.slice(cursor, safeStart));
+        html += '<mark style="background: #fef08a; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-weight: 600;">' +
+            escapeHTML(text.slice(safeStart, safeEnd)) +
+            '</mark>';
+        cursor = safeEnd;
+    });
+    html += escapeHTML(text.slice(cursor));
+    return html;
+}
+
 // Enhanced highlighting function
 function highlightSearchTerm(text, searchTerm) {
-    if (!searchTerm || !text) return escapeHTML(text);
+    const decoded = decodeHTMLEntities(text);
+    if (!searchTerm || !decoded) return escapeHTML(decoded);
     
     const processedTerms = processSearchTerms(searchTerm);
-    if (processedTerms.length === 0) return escapeHTML(text);
+    if (processedTerms.length === 0) return escapeHTML(decoded);
     
-    let highlightedText = escapeHTML(text);
-    const normalizedText = normalizeText(text);
-    
-    // Create a map of positions to highlight
+    // Find ranges on the original decoded text, then escape each slice.
+    // Applying indices from normalized/escaped strings previously split
+    // characters around &, <, > and accented letters.
     const highlights = [];
+    const lowerText = decoded.toLowerCase();
     
     processedTerms.forEach(term => {
-        // Find exact matches
-        let index = 0;
-        while ((index = normalizedText.indexOf(term.original, index)) !== -1) {
-            highlights.push({ start: index, end: index + term.original.length });
-            index += term.original.length;
+        if (term.original) {
+            let index = 0;
+            while ((index = lowerText.indexOf(term.original, index)) !== -1) {
+                highlights.push({ start: index, end: index + term.original.length });
+                index += term.original.length;
+            }
         }
         
-        // Find partial matches
-        const words = normalizedText.split(/(\s+)/);
+        const tokens = decoded.split(/(\s+)/);
         let currentPos = 0;
-        
-        words.forEach(word => {
-            const cleanWord = word.replace(/[^\w]/g, '');
+        tokens.forEach(token => {
+            const cleanWord = token.replace(/[^\w]/g, '');
             if (cleanWord.length > 0) {
-                if (wordMatch(term.original, cleanWord) || 
-                    wordMatch(term.stemmed, stemWord(cleanWord))) {
-                    highlights.push({ 
-                        start: currentPos, 
-                        end: currentPos + word.length 
+                const normalizedWord = normalizeText(cleanWord);
+                if (wordMatch(term.original, normalizedWord) ||
+                    wordMatch(term.stemmed, stemWord(normalizedWord))) {
+                    highlights.push({
+                        start: currentPos,
+                        end: currentPos + token.length
                     });
                 }
             }
-            currentPos += word.length;
+            currentPos += token.length;
         });
     });
     
-    // Sort highlights by position and merge overlapping ones
-    highlights.sort((a, b) => a.start - b.start);
-    const mergedHighlights = [];
-    
-    highlights.forEach(highlight => {
-        const last = mergedHighlights[mergedHighlights.length - 1];
-        if (last && highlight.start <= last.end) {
-            last.end = Math.max(last.end, highlight.end);
-        } else {
-            mergedHighlights.push(highlight);
-        }
-    });
-    
-    // Apply highlights from right to left to preserve positions
-    mergedHighlights.reverse().forEach(highlight => {
-        const before = highlightedText.substring(0, highlight.start);
-        const match = highlightedText.substring(highlight.start, highlight.end);
-        const after = highlightedText.substring(highlight.end);
-        
-        highlightedText = before + 
-            '<mark style="background: #fef08a; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-weight: 600;">' + 
-            match + 
-            '</mark>' + 
-            after;
-    });
-    
-    return highlightedText;
+    return applyHighlights(decoded, highlights);
 }
 
 // Escape regex special characters
@@ -247,9 +270,15 @@ function escapeRegex(string) {
 }
 
 // Initialize search functionality
+let searchInitialized = false;
 function initializeSearch() {
+    if (searchInitialized || !searchInput) return;
+    searchInitialized = true;
+
     searchInput.addEventListener('input', debounce(handleSearch, 300));
-    clearButton.addEventListener('click', clearSearch);
+    if (clearButton) {
+        clearButton.addEventListener('click', clearSearch);
+    }
     
     searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -309,19 +338,39 @@ function clearSearch() {
 }
 
 // Initialize date filter functionality
+let dateFilterInitialized = false;
 function initializeDateFilter() {
-    // Toggle date filter visibility
-    toggleDateFilter.addEventListener('click', () => {
-        const isExpanded = dateFilterControls.classList.contains('expanded');
-        dateFilterControls.classList.toggle('expanded');
-        toggleDateFilter.classList.toggle('expanded');
-    });
+    if (dateFilterInitialized || !toggleDateFilter || !dateFilterControls) return;
+    dateFilterInitialized = true;
+
+    const dateFilterHeader = document.querySelector('.date-filter-header');
+
+    const toggleDateFilterVisibility = (e) => {
+        e.preventDefault();
+        const isExpanded = dateFilterControls.classList.toggle('expanded');
+        toggleDateFilter.classList.toggle('expanded', isExpanded);
+        toggleDateFilter.setAttribute('aria-expanded', String(isExpanded));
+    };
+
+    // The header looks clickable; bind there so the whole row opens the filter.
+    // Clicks on the chevron bubble to the header, so don't also bind the button.
+    if (dateFilterHeader) {
+        dateFilterHeader.addEventListener('click', toggleDateFilterVisibility);
+    } else {
+        toggleDateFilter.addEventListener('click', toggleDateFilterVisibility);
+    }
+    toggleDateFilter.setAttribute('aria-expanded', 'false');
+    toggleDateFilter.setAttribute('aria-controls', 'date-filter-controls');
 
     // Apply date filter
-    applyDateFilter.addEventListener('click', handleDateFilter);
+    if (applyDateFilter) {
+        applyDateFilter.addEventListener('click', handleDateFilter);
+    }
     
     // Clear date filter
-    clearDateFilter.addEventListener('click', clearDateFilters);
+    if (clearDateFilter) {
+        clearDateFilter.addEventListener('click', clearDateFilters);
+    }
     
     // Date preset buttons
     presetButtons.forEach(button => {
@@ -338,8 +387,12 @@ function initializeDateFilter() {
     });
     
     // Date input changes
-    startDateInput.addEventListener('change', validateDateInputs);
-    endDateInput.addEventListener('change', validateDateInputs);
+    if (startDateInput) {
+        startDateInput.addEventListener('change', validateDateInputs);
+    }
+    if (endDateInput) {
+        endDateInput.addEventListener('change', validateDateInputs);
+    }
 }
 
 // Apply all filters (enhanced search + date)
@@ -379,7 +432,12 @@ async function loadPosts() {
         
         const posts = await response.json();
         
-        allPosts = posts.filter(post => post.text && post.text.trim() !== "");
+        allPosts = posts
+            .filter(post => post.text && post.text.trim() !== "")
+            .map(post => ({
+                ...post,
+                text: decodeHTMLEntities(post.text)
+            }));
         filteredPosts = [...allPosts];
         
         loading.style.display = 'none';
@@ -398,9 +456,6 @@ async function loadPosts() {
         postCountElement.style.display = 'block';
         setupIntersectionObserver();
         loadMorePosts();
-        
-        initializeSearch();
-        initializeDateFilter();
         
     } catch (error) {
         console.error('Error loading posts:', error);
