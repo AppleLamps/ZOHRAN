@@ -172,9 +172,15 @@ function enhancedSearch(posts, searchTerms) {
     });
 }
 
-// Decode HTML entities from archived post text (e.g. &amp; -> &)
-function decodeHTMLEntities(str) {
-    if (typeof str !== 'string' || str.length === 0) return '';
+function decodeNumericEntity(match, digits, radix) {
+    const codePoint = parseInt(digits, radix);
+    if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10FFFF) {
+        return match;
+    }
+    return String.fromCodePoint(codePoint);
+}
+
+function decodeHTMLEntitiesOnce(str) {
     return str
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
@@ -182,8 +188,21 @@ function decodeHTMLEntities(str) {
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
         .replace(/&apos;/g, "'")
-        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-        .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10)));
+        .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => decodeNumericEntity(match, hex, 16))
+        .replace(/&#(\d+);/g, (match, num) => decodeNumericEntity(match, num, 10));
+}
+
+// Decode HTML entities from archived post text (e.g. &amp; -> &)
+function decodeHTMLEntities(str) {
+    if (typeof str !== 'string' || str.length === 0) return '';
+
+    let decoded = str;
+    for (let i = 0; i < 5; i++) {
+        const next = decodeHTMLEntitiesOnce(decoded);
+        if (next === decoded) break;
+        decoded = next;
+    }
+    return decoded;
 }
 
 function mergeHighlightRanges(ranges) {
@@ -220,19 +239,20 @@ function applyHighlights(text, ranges) {
     return html;
 }
 
-// Enhanced highlighting function
+// Highlight on the provided text as-is. Post bodies are decoded in loadPosts();
+// decoding again here would make search offsets disagree with rendered text.
 function highlightSearchTerm(text, searchTerm) {
-    const decoded = decodeHTMLEntities(text);
-    if (!searchTerm || !decoded) return escapeHTML(decoded);
+    if (!text) return '';
+    if (!searchTerm) return escapeHTML(text);
     
     const processedTerms = processSearchTerms(searchTerm);
-    if (processedTerms.length === 0) return escapeHTML(decoded);
+    if (processedTerms.length === 0) return escapeHTML(text);
     
-    // Find ranges on the original decoded text, then escape each slice.
+    // Find ranges on the original text, then escape each slice.
     // Applying indices from normalized/escaped strings previously split
     // characters around &, <, > and accented letters.
     const highlights = [];
-    const lowerText = decoded.toLowerCase();
+    const lowerText = text.toLowerCase();
     
     processedTerms.forEach(term => {
         if (term.original) {
@@ -243,7 +263,7 @@ function highlightSearchTerm(text, searchTerm) {
             }
         }
         
-        const tokens = decoded.split(/(\s+)/);
+        const tokens = text.split(/(\s+)/);
         let currentPos = 0;
         tokens.forEach(token => {
             const cleanWord = token.replace(/[^\w]/g, '');
@@ -261,7 +281,7 @@ function highlightSearchTerm(text, searchTerm) {
         });
     });
     
-    return applyHighlights(decoded, highlights);
+    return applyHighlights(text, highlights);
 }
 
 // Escape regex special characters
@@ -345,8 +365,7 @@ function initializeDateFilter() {
 
     const dateFilterHeader = document.querySelector('.date-filter-header');
 
-    const toggleDateFilterVisibility = (e) => {
-        e.preventDefault();
+    const toggleDateFilterVisibility = () => {
         const isExpanded = dateFilterControls.classList.toggle('expanded');
         toggleDateFilter.classList.toggle('expanded', isExpanded);
         toggleDateFilter.setAttribute('aria-expanded', String(isExpanded));
