@@ -775,6 +775,22 @@ mark {
     min-height: 60px;
 }
 
+/* Decorative X-style icon buttons (no actions, hidden from screen readers) */
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    color: var(--text-primary);
+}
+
+.action-btn .material-symbols-outlined {
+    font-size: 20px;
+}
+
 .follow-btn {
     display: inline-flex;
     align-items: center;
@@ -872,12 +888,6 @@ mark {
     font-weight: 700;
     color: var(--text-primary);
     margin-right: 4px;
-}
-
-.profile-snapshot {
-    margin-top: 8px;
-    font-size: 12px;
-    color: var(--text-muted);
 }
 
 /* Profile Navigation */

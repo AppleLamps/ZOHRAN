@@ -376,7 +376,7 @@ function createPostElement(post) {
 
     article.innerHTML = `
         <div class="post-avatar">
-            <img src="profile.png" alt="" width="40" height="40" loading="lazy" decoding="async" />
+            <img src="profile.jpg" alt="" width="40" height="40" loading="lazy" decoding="async" />
         </div>
         <div class="post-content">
             <div class="meta">
