@@ -1,7 +1,8 @@
-// DOM elements
+'use strict';
+
+// ===== DOM ELEMENTS =====
 const container = document.getElementById('posts-container');
 const loading = document.getElementById('loading');
-const infiniteLoading = document.getElementById('infinite-loading');
 const emptyState = document.getElementById('empty-state');
 const postCountElement = document.getElementById('post-count');
 const searchSection = document.getElementById('search-section');
@@ -9,174 +10,110 @@ const searchInput = document.getElementById('search-input');
 const clearButton = document.getElementById('clear-search');
 const searchResults = document.getElementById('search-results');
 
-// Date filter elements
 const toggleDateFilter = document.getElementById('toggle-date-filter');
 const dateFilterControls = document.getElementById('date-filter-controls');
 const startDateInput = document.getElementById('start-date');
 const endDateInput = document.getElementById('end-date');
-const applyDateFilter = document.getElementById('apply-date-filter');
-const clearDateFilter = document.getElementById('clear-date-filter');
-const presetButtons = document.querySelectorAll('.preset-btn');
+const applyDateFilterButton = document.getElementById('apply-date-filter');
+const clearDateFilterButton = document.getElementById('clear-date-filter');
+const datePresets = document.getElementById('date-presets');
 
-// Global variables
+// ===== STATE =====
+const POSTS_PER_PAGE = 25;
 let allPosts = [];
 let filteredPosts = [];
 let currentSearchTerm = '';
+let currentTerms = [];
 let currentStartDate = null;
 let currentEndDate = null;
-let observer;
-const POSTS_PER_PAGE = 25;
+let observer = null;
 let currentPage = 0;
-let isLoading = false;
 
-// Enhanced search functionality with stopwords and stemming
+// ===== TEXT HELPERS =====
+
+// Function words only. Content words such as "work", "public", "new" or "right"
+// must stay searchable on a politics archive.
 const STOPWORDS = new Set([
     'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'he', 'in', 'is', 'it',
     'its', 'of', 'on', 'that', 'the', 'to', 'was', 'will', 'with', 'would', 'i', 'you', 'we', 'they',
     'she', 'her', 'him', 'his', 'my', 'our', 'your', 'their', 'this', 'these', 'those', 'but', 'or',
-    'not', 'can', 'do', 'have', 'had', 'been', 'were', 'am', 'all', 'any', 'some', 'if', 'so', 'what',
-    'when', 'where', 'who', 'why', 'how', 'there', 'here', 'then', 'than', 'more', 'most', 'much',
-    'many', 'very', 'just', 'only', 'also', 'even', 'still', 'now', 'get', 'got', 'go', 'going', 'come',
-    'came', 'see', 'saw', 'know', 'knew', 'think', 'thought', 'say', 'said', 'tell', 'told', 'ask',
-    'asked', 'give', 'gave', 'take', 'took', 'make', 'made', 'want', 'wanted', 'need', 'needed', 'try',
-    'tried', 'look', 'looked', 'feel', 'felt', 'seem', 'seemed', 'find', 'found', 'work', 'worked',
-    'use', 'used', 'call', 'called', 'way', 'ways', 'time', 'times', 'day', 'days', 'year', 'years',
-    'new', 'old', 'first', 'last', 'long', 'good', 'great', 'little', 'own', 'other', 'right', 'left',
-    'high', 'low', 'big', 'small', 'large', 'next', 'early', 'young', 'important', 'few', 'public',
-    'bad', 'same', 'able'
+    'can', 'do', 'have', 'had', 'been', 'were', 'am', 'if', 'so', 'there', 'here', 'then', 'than',
+    'just', 'also', 'very'
 ]);
 
-// Simple stemming rules
 const STEMMING_RULES = [
-    { pattern: /ies$/, replacement: 'y' },
-    { pattern: /ied$/, replacement: 'y' },
-    { pattern: /ying$/, replacement: 'y' },
-    { pattern: /ing$/, replacement: '' },
-    { pattern: /ly$/, replacement: '' },
-    { pattern: /ed$/, replacement: '' },
-    { pattern: /ies$/, replacement: 'y' },
-    { pattern: /ied$/, replacement: 'y' },
-    { pattern: /ies$/, replacement: 'y' },
-    { pattern: /s$/, replacement: '' }
+    [/ies$/, 'y'],
+    [/ied$/, 'y'],
+    [/(ss|s|x|z|ch|sh)es$/, '$1'],  // buses -> bus, taxes -> tax, houses -> hous
+    [/ying$/, 'y'],
+    [/ing$/, ''],
+    [/ly$/, ''],
+    [/ed$/, ''],
+    [/s$/, '']
 ];
 
-// Normalize text for searching (remove accents, etc.)
+// Letters and digits in any script. Punctuation, @ and # separate words.
+const WORD_RE = /[\p{L}\p{N}]+/gu;
+
+// Links, @mentions and #hashtags in post text. The URL must not end in
+// punctuation, so "https://t.co/abc!" links only "https://t.co/abc".
+const ENTITY_RE = /(https?:\/\/\S*[^\s.,!?;:)\]"'”’…])|(^|[^A-Za-z0-9_@])@([A-Za-z0-9_]{1,15})|(^|[^\p{L}\p{N}_&])#([\p{L}\p{N}_]*\p{L}[\p{L}\p{N}_]*)/gu;
+
 function normalizeText(text) {
-    return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
-// Simple stemming function
+function tokenize(text) {
+    return normalizeText(text).match(WORD_RE) || [];
+}
+
 function stemWord(word) {
     if (word.length <= 3) return word;
-    
-    for (let rule of STEMMING_RULES) {
-        if (rule.pattern.test(word)) {
-            let stemmed = word.replace(rule.pattern, rule.replacement);
-            if (stemmed.length >= 2) {
-                return stemmed;
-            }
+    for (const [pattern, replacement] of STEMMING_RULES) {
+        if (pattern.test(word)) {
+            const stemmed = word.replace(pattern, replacement);
+            if (stemmed.length >= 2) return stemmed;
         }
     }
     return word;
 }
 
-// Process search terms (normalize, remove stopwords, stem)
+// Turn a query into search terms. Stopwords are dropped unless the query is
+// nothing but stopwords, so searching "the" still searches.
 function processSearchTerms(searchText) {
-    if (!searchText || typeof searchText !== 'string') {
-        return [];
-    }
-    
-    const normalized = normalizeText(searchText.trim());
-    if (normalized.length === 0) {
-        return [];
-    }
-    
-    const words = normalized.split(/\s+/).filter(word => word.length > 0);
-    
-    return words
-        .filter(word => !STOPWORDS.has(word) && word.length > 0)
-        .map(word => ({
-            original: word,
-            stemmed: stemWord(word)
-        }));
+    if (!searchText || typeof searchText !== 'string') return [];
+    const words = [...new Set(tokenize(searchText))];
+    const meaningful = words.filter(word => !STOPWORDS.has(word));
+    return (meaningful.length ? meaningful : words).map(word => ({
+        original: word,
+        stemmed: stemWord(word)
+    }));
 }
 
-// Check if word matches (exact match or meaningful partial match)
-function wordMatch(word, target) {
-    if (word === target) return true;
-    
-    // Only check meaningful partial matches for words of reasonable length
-    if (word.length >= 3 && target.length >= 3) {
-        // Only match if one word starts with the other (prefix matching)
-        // This prevents "iran" from matching "ran" but allows "child" to match "childcare"
-        if (target.startsWith(word) || word.startsWith(target)) return true;
-    }
-    
-    // For shorter words, only allow exact matches
-    if (word.length < 3 || target.length < 3) {
-        return word === target;
-    }
-    
-    return false;
+// A term matches a word if it is the word, the start of the word ("child" ->
+// "childcare"), or shares its stem ("buses" -> "bus"). Prefix matching only
+// runs one way: "therapy" must not match every post containing "the".
+function termMatchesWord(term, word, stem) {
+    if (word === term.original) return true;
+    if (term.original.length >= 3 && word.startsWith(term.original)) return true;
+    return stem === term.stemmed;
 }
 
-// Get all searchable text from a post
-function getSearchableText(post) {
-    const fields = [
-        post.text || '',
-        post.user_screen_name || '',
-        post.user_name || ''
-        // Removed potentially empty/undefined fields that might cause issues
-    ];
-    
-    return fields.filter(field => field && field.trim()).join(' ').toLowerCase();
+function postMatchesTerms(post, terms) {
+    return terms.every(term =>
+        post._words.some((word, i) => termMatchesWord(term, word, post._stems[i]))
+    );
 }
 
-// Enhanced search function
-function enhancedSearch(posts, searchTerms) {
-    if (!searchTerms || searchTerms.length === 0) {
-        return posts;
-    }
-    
-    return posts.filter(post => {
-        const searchableText = normalizeText(getSearchableText(post));
-        const searchableWords = searchableText.split(/\s+/).filter(word => word.length > 0);
-        
-        // All search terms must match (AND logic)
-        return searchTerms.every(term => {
-            // Skip empty terms
-            if (!term.original || term.original.length === 0) {
-                return true;
-            }
-            
-            // Check exact match first
-            if (searchableText.includes(term.original)) {
-                return true;
-            }
-            
-            // Check stemmed match
-            if (searchableWords.some(word => stemWord(word) === term.stemmed)) {
-                return true;
-            }
-            
-            // Check word match (exact or partial)
-            return searchableWords.some(word => {
-                // Only do matching if both words are meaningful length
-                if (word.length >= 2 && term.original.length >= 2) {
-                    return wordMatch(term.original, word) || 
-                           wordMatch(term.stemmed, stemWord(word));
-                }
-                return false;
-            });
-        });
-    });
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function escapeHTML(str) {
+    if (typeof str !== 'string') str = str == null ? '' : String(str);
+    return str.replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
 }
 
 function decodeNumericEntity(match, digits, radix) {
     const codePoint = parseInt(digits, radix);
-    if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10FFFF) {
-        return match;
-    }
+    if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10FFFF) return match;
     return String.fromCodePoint(codePoint);
 }
 
@@ -192,10 +129,9 @@ function decodeHTMLEntitiesOnce(str) {
         .replace(/&#(\d+);/g, (match, num) => decodeNumericEntity(match, num, 10));
 }
 
-// Decode HTML entities from archived post text (e.g. &amp; -> &)
+// Archived post text can be HTML-escaped more than once (e.g. &amp;amp;).
 function decodeHTMLEntities(str) {
     if (typeof str !== 'string' || str.length === 0) return '';
-
     let decoded = str;
     for (let i = 0; i < 5; i++) {
         const next = decodeHTMLEntitiesOnce(decoded);
@@ -205,277 +141,180 @@ function decodeHTMLEntities(str) {
     return decoded;
 }
 
-function mergeHighlightRanges(ranges) {
-    if (!ranges.length) return [];
-    ranges.sort((a, b) => a.start - b.start);
+// ===== HIGHLIGHTING =====
+
+function mergeRanges(ranges) {
+    const sorted = [...ranges].sort((a, b) => a.start - b.start);
     const merged = [];
-    ranges.forEach(range => {
+    for (const range of sorted) {
         const last = merged[merged.length - 1];
         if (last && range.start <= last.end) {
             last.end = Math.max(last.end, range.end);
         } else {
             merged.push({ start: range.start, end: range.end });
         }
-    });
+    }
     return merged;
 }
 
-function applyHighlights(text, ranges) {
-    const merged = mergeHighlightRanges(ranges);
-    if (!merged.length) return escapeHTML(text);
+// Ranges of whole words in the original text that match the search terms.
+function findWordHighlights(text, terms) {
+    if (!text || !terms.length) return [];
+    const ranges = [];
+    for (const match of text.matchAll(WORD_RE)) {
+        const word = normalizeText(match[0]);
+        const stem = stemWord(word);
+        if (terms.some(term => termMatchesWord(term, word, stem))) {
+            ranges.push({ start: match.index, end: match.index + match[0].length });
+        }
+    }
+    return mergeRanges(ranges);
+}
 
+// Ranges of substrings that match the terms (used for donor search, which
+// matches substrings such as "son" in "Johnson").
+function findSubstringHighlights(text, terms) {
+    if (!text || !terms.length) return [];
+    const normalized = normalizeText(text);
+    // Accent stripping can change length for unusual characters; fall back
+    // to plain lowercasing so indices stay aligned with the original text.
+    const haystack = normalized.length === text.length ? normalized : text.toLowerCase();
+    const ranges = [];
+    for (const term of terms) {
+        let index = 0;
+        while ((index = haystack.indexOf(term.original, index)) !== -1) {
+            ranges.push({ start: index, end: index + term.original.length });
+            index += term.original.length;
+        }
+    }
+    return mergeRanges(ranges);
+}
+
+// Escape text[start, end) and wrap the parts covered by ranges in <mark>.
+function highlightSlice(text, start, end, ranges) {
+    let html = '';
+    let cursor = start;
+    for (const range of ranges) {
+        if (range.end <= start || range.start >= end) continue;
+        const s = Math.max(range.start, cursor);
+        const e = Math.min(range.end, end);
+        if (s >= e) continue;
+        html += escapeHTML(text.slice(cursor, s)) + '<mark>' + escapeHTML(text.slice(s, e)) + '</mark>';
+        cursor = e;
+    }
+    return html + escapeHTML(text.slice(cursor, end));
+}
+
+function highlightText(text, ranges) {
+    return highlightSlice(text || '', 0, (text || '').length, ranges);
+}
+
+// Post text as HTML: escaped, search matches highlighted, and links,
+// @mentions and #hashtags turned into links to X.
+function renderPostText(text, ranges) {
     let html = '';
     let cursor = 0;
-    merged.forEach(({ start, end }) => {
-        const safeStart = Math.max(0, Math.min(start, text.length));
-        const safeEnd = Math.max(safeStart, Math.min(end, text.length));
-        html += escapeHTML(text.slice(cursor, safeStart));
-        html += '<mark style="background: #fef08a; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-weight: 600;">' +
-            escapeHTML(text.slice(safeStart, safeEnd)) +
-            '</mark>';
-        cursor = safeEnd;
-    });
-    html += escapeHTML(text.slice(cursor));
-    return html;
-}
-
-// Highlight on the provided text as-is. Post bodies are decoded in loadPosts();
-// decoding again here would make search offsets disagree with rendered text.
-function highlightSearchTerm(text, searchTerm) {
-    if (!text) return '';
-    if (!searchTerm) return escapeHTML(text);
-    
-    const processedTerms = processSearchTerms(searchTerm);
-    if (processedTerms.length === 0) return escapeHTML(text);
-    
-    // Find ranges on the original text, then escape each slice.
-    // Applying indices from normalized/escaped strings previously split
-    // characters around &, <, > and accented letters.
-    const highlights = [];
-    const lowerText = text.toLowerCase();
-    
-    processedTerms.forEach(term => {
-        if (term.original) {
-            let index = 0;
-            while ((index = lowerText.indexOf(term.original, index)) !== -1) {
-                highlights.push({ start: index, end: index + term.original.length });
-                index += term.original.length;
-            }
+    for (const match of text.matchAll(ENTITY_RE)) {
+        let start = match.index;
+        let href;
+        if (match[1]) {
+            href = match[1];
+        } else if (match[3]) {
+            start += match[2].length;
+            href = `https://x.com/${match[3]}`;
+        } else {
+            start += match[4].length;
+            href = `https://x.com/hashtag/${encodeURIComponent(match[5])}`;
         }
-        
-        const tokens = text.split(/(\s+)/);
-        let currentPos = 0;
-        tokens.forEach(token => {
-            const cleanWord = token.replace(/[^\w]/g, '');
-            if (cleanWord.length > 0) {
-                const normalizedWord = normalizeText(cleanWord);
-                if (wordMatch(term.original, normalizedWord) ||
-                    wordMatch(term.stemmed, stemWord(normalizedWord))) {
-                    highlights.push({
-                        start: currentPos,
-                        end: currentPos + token.length
-                    });
-                }
-            }
-            currentPos += token.length;
-        });
-    });
-    
-    return applyHighlights(text, highlights);
+        const end = match.index + match[0].length;
+        html += highlightSlice(text, cursor, start, ranges);
+        html += `<a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${highlightSlice(text, start, end, ranges)}</a>`;
+        cursor = end;
+    }
+    return html + highlightSlice(text, cursor, text.length, ranges);
 }
 
-// Escape regex special characters
-function escapeRegex(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// ===== DATES =====
+
+// Post timestamps look like "6/28/2025 10:56" (US Eastern).
+function parsePostDate(dateString) {
+    const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/.exec(dateString || '');
+    if (!match) return null;
+    const [, month, day, year, hour = '0', minute = '0'] = match;
+    return new Date(+year, +month - 1, +day, +hour, +minute);
 }
 
-// Initialize search functionality
-let searchInitialized = false;
-function initializeSearch() {
-    if (searchInitialized || !searchInput) return;
-    searchInitialized = true;
-
-    searchInput.addEventListener('input', debounce(handleSearch, 300));
-    if (clearButton) {
-        clearButton.addEventListener('click', clearSearch);
-    }
-    
-    searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            handleSearch();
-        }
-    });
-    
-    // Initialize search help
-    const searchHelpButton = document.getElementById('search-help');
-    const searchHelpPanel = document.getElementById('search-help-panel');
-    
-    if (searchHelpButton && searchHelpPanel) {
-        searchHelpButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            searchHelpPanel.classList.toggle('show');
-        });
-        
-        // Close help panel when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!searchHelpPanel.contains(e.target) && !searchHelpButton.contains(e.target)) {
-                searchHelpPanel.classList.remove('show');
-            }
-        });
-        
-        // Close help panel when starting to type
-        searchInput.addEventListener('focus', () => {
-            searchHelpPanel.classList.remove('show');
-        });
-    }
+// <input type="date"> values are "YYYY-MM-DD". new Date("YYYY-MM-DD") reads
+// that as UTC midnight, which is the previous evening in US time zones, so
+// build the date in local time instead.
+function parseInputDate(value, endOfDay = false) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+    if (!match) return null;
+    const [, year, month, day] = match.map(Number);
+    return endOfDay
+        ? new Date(year, month - 1, day, 23, 59, 59, 999)
+        : new Date(year, month - 1, day);
 }
 
-// Handle search input with enhanced search
-function handleSearch() {
-    const searchTerm = searchInput.value.trim();
-    currentSearchTerm = searchTerm;
-    
-    clearButton.style.display = searchTerm ? 'block' : 'none';
-    
-    applyFilters();
-    updatePostCount();
-    postCountElement.style.display = 'block';
-    displayPosts(filteredPosts, true);
-    updateSearchResults(searchTerm);
+function toInputValue(date) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-// Clear search
-function clearSearch() {
-    searchInput.value = '';
-    currentSearchTerm = '';
-    clearButton.style.display = 'none';
-    applyFilters();
-    updatePostCount();
-    displayPosts(filteredPosts, true);
-    searchResults.textContent = '';
+function formatShortDate(date) {
+    return date ? date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown date';
 }
 
-// Initialize date filter functionality
-let dateFilterInitialized = false;
-function initializeDateFilter() {
-    if (dateFilterInitialized || !toggleDateFilter || !dateFilterControls) return;
-    dateFilterInitialized = true;
-
-    const dateFilterHeader = document.querySelector('.date-filter-header');
-
-    const toggleDateFilterVisibility = () => {
-        const isExpanded = dateFilterControls.classList.toggle('expanded');
-        toggleDateFilter.classList.toggle('expanded', isExpanded);
-        toggleDateFilter.setAttribute('aria-expanded', String(isExpanded));
-    };
-
-    // The header looks clickable; bind there so the whole row opens the filter.
-    // Clicks on the chevron bubble to the header, so don't also bind the button.
-    if (dateFilterHeader) {
-        dateFilterHeader.addEventListener('click', toggleDateFilterVisibility);
-    } else {
-        toggleDateFilter.addEventListener('click', toggleDateFilterVisibility);
-    }
-    toggleDateFilter.setAttribute('aria-expanded', 'false');
-    toggleDateFilter.setAttribute('aria-controls', 'date-filter-controls');
-
-    // Apply date filter
-    if (applyDateFilter) {
-        applyDateFilter.addEventListener('click', handleDateFilter);
-    }
-    
-    // Clear date filter
-    if (clearDateFilter) {
-        clearDateFilter.addEventListener('click', clearDateFilters);
-    }
-    
-    // Date preset buttons
-    presetButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const days = parseInt(button.dataset.days);
-            applyDatePreset(days);
-            button.classList.add('active');
-            
-            // Remove active class from other preset buttons
-            presetButtons.forEach(btn => {
-                if (btn !== button) btn.classList.remove('active');
-            });
-        });
-    });
-    
-    // Date input changes
-    if (startDateInput) {
-        startDateInput.addEventListener('change', validateDateInputs);
-    }
-    if (endDateInput) {
-        endDateInput.addEventListener('change', validateDateInputs);
-    }
+function formatFullDate(date) {
+    if (!date) return 'Unknown date';
+    return date.toLocaleString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true
+    }) + ' ET';
 }
 
-// Apply all filters (enhanced search + date)
-function applyFilters() {
-    let filtered = [...allPosts];
-    
-    // Apply enhanced search filter
-    if (currentSearchTerm) {
-        const searchTerms = processSearchTerms(currentSearchTerm);
-        filtered = enhancedSearch(filtered, searchTerms);
-    }
-    
-    // Apply date filter
-    if (currentStartDate || currentEndDate) {
-        filtered = filtered.filter(post => {
-            const postDate = parsePostDate(post.created_at);
-            if (!postDate) return false;
-            
-            if (currentStartDate && postDate < currentStartDate) return false;
-            if (currentEndDate && postDate > currentEndDate) return false;
-            
-            return true;
-        });
-    }
-    
-    filteredPosts = filtered;
+function formatDateRange(startDate, endDate) {
+    if (startDate && endDate) return `${formatShortDate(startDate)} to ${formatShortDate(endDate)}`;
+    if (startDate) return `${formatShortDate(startDate)} onwards`;
+    if (endDate) return `up to ${formatShortDate(endDate)}`;
+    return '';
 }
 
-// Load and display posts
+// ===== POSTS: LOADING AND RENDERING =====
+
 async function loadPosts() {
     try {
         const response = await fetch('ZohranKMamdani_X_posts.json');
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const posts = await response.json();
-        
+
         allPosts = posts
-            .filter(post => post.text && post.text.trim() !== "")
-            .map(post => ({
-                ...post,
-                text: decodeHTMLEntities(post.text)
-            }));
-        filteredPosts = [...allPosts];
-        
+            .filter(post => post.text && post.text.trim() !== '')
+            .map(post => {
+                const text = decodeHTMLEntities(post.text);
+                const words = [...new Set(tokenize(text))];
+                return {
+                    ...post,
+                    text,
+                    date: parsePostDate(post.created_at),
+                    _words: words,
+                    _stems: words.map(stemWord)
+                };
+            });
+        filteredPosts = allPosts;
+
         loading.style.display = 'none';
-        
+
         if (allPosts.length === 0) {
             emptyState.style.display = 'flex';
             postCountElement.textContent = '0 posts';
-            postCountElement.style.display = 'block';
             return;
         }
-        
+
         searchSection.style.display = 'block';
-        container.style.display = 'grid';
-        
-        updatePostCount();
-        postCountElement.style.display = 'block';
-        setupIntersectionObserver();
-        loadMorePosts();
-        
+        container.style.display = 'block';
+        buildYearPresets();
+        refreshPosts();
     } catch (error) {
         console.error('Error loading posts:', error);
         showError(error.message);
@@ -483,897 +322,688 @@ async function loadPosts() {
 }
 
 function setupIntersectionObserver() {
-    const options = {
-        root: null,
-        rootMargin: '200px',
-        threshold: 0.1
-    };
-
-    observer = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting && !isLoading) {
+    if (observer) observer.disconnect();
+    observer = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+            if (entry.isIntersecting) {
+                observer.unobserve(entry.target);
                 loadMorePosts();
             }
-        });
-    }, options);
+        }
+    }, { rootMargin: '600px 0px' });
 }
 
-function loadMorePosts() {
-    if (isLoading) return;
-    
-    const start = currentPage * POSTS_PER_PAGE;
-    const end = start + POSTS_PER_PAGE;
-    const postsToRender = filteredPosts.slice(start, end);
+// Clear the list and render the first page of filteredPosts.
+function renderPosts() {
+    container.innerHTML = '';
+    currentPage = 0;
+    setupIntersectionObserver();
 
-    if (postsToRender.length === 0 && currentPage > 0) {
-        // No more posts to load
-        infiniteLoading.style.display = 'none';
-        if (observer) {
-            observer.disconnect();
-        }
-        return;
-    }
-    
-    isLoading = true;
-    
-    // Show loading indicator for subsequent loads
-    if (currentPage > 0) {
-        infiniteLoading.style.display = 'block';
-    }
-    
-    requestAnimationFrame(() => {
-        displayPosts(postsToRender);
-        currentPage++;
-        isLoading = false;
-        
-        // Hide loading indicator
-        infiniteLoading.style.display = 'none';
-
-        const lastPost = container.querySelector('.post:last-child');
-        if (lastPost && observer && currentPage * POSTS_PER_PAGE < filteredPosts.length) {
-            observer.observe(lastPost);
-        }
-    });
-}
-
-// Display posts with animation
-function displayPosts(posts, isSearch = false) {
-    if (isSearch) {
-        container.innerHTML = '';
-        currentPage = 0;
-        isLoading = false;
-        if (observer) {
-            observer.disconnect();
-        }
-        setupIntersectionObserver();
-        loadMorePosts();
-        return;
-    }
-
-    if (posts.length === 0 && currentPage === 0) {
+    if (filteredPosts.length === 0) {
         showNoResults();
         return;
     }
-    
-    const fragment = document.createDocumentFragment();
-    
-    posts.forEach((post, index) => {
-        const postElement = createPostElement(post, (currentPage * POSTS_PER_PAGE) + index, isSearch);
-        fragment.appendChild(postElement);
-    });
-    
-    container.appendChild(fragment);
+    loadMorePosts();
 }
 
-// Create individual post element
-function createPostElement(post, index, isSearch = false) {
-    const postDiv = document.createElement('div');
-    postDiv.className = 'post';
-    
-    const formattedDate = formatDate(post.created_at);
-    
-    const highlightedText = highlightSearchTerm(post.text, currentSearchTerm);
-    const highlightedHandle = highlightSearchTerm(post.user_screen_name || 'ZohranKMamdani', currentSearchTerm);
+// Append the next page. Rendering is synchronous so a newer search can never
+// be overwritten by a page queued for an older one.
+function loadMorePosts() {
+    const start = currentPage * POSTS_PER_PAGE;
+    const batch = filteredPosts.slice(start, start + POSTS_PER_PAGE);
+    if (batch.length === 0) return;
 
-    const fullDate = formatFullDate(post.created_at);
-    
-    // Create the post link if available
-    const postLink = post.link || '#';
-    
-    // Get post type and create type indicator
-    const postType = post.type || 'Post';
-    const typeClass = postType.toLowerCase();
-    const typeIcon = postType === 'Reply' ? 'reply' : (postType === 'Repost' ? 'repeat' : 'edit_note');
-    
-    postDiv.innerHTML = `
+    const fragment = document.createDocumentFragment();
+    batch.forEach(post => fragment.appendChild(createPostElement(post)));
+    container.appendChild(fragment);
+    currentPage++;
+
+    if (currentPage * POSTS_PER_PAGE < filteredPosts.length && container.lastElementChild) {
+        observer.observe(container.lastElementChild);
+    }
+}
+
+const POST_TYPE_ICONS = { Reply: 'reply', Repost: 'repeat', Post: 'edit_note' };
+
+function createPostElement(post) {
+    const article = document.createElement('article');
+    article.className = 'post';
+
+    const postLink = post.link || '';
+    const postType = POST_TYPE_ICONS[post.type] ? post.type : 'Post';
+    const ranges = findWordHighlights(post.text, currentTerms);
+    const safeLink = escapeHTML(postLink || '#');
+
+    article.innerHTML = `
         <div class="post-avatar">
-            <img src="profile.png" alt="Profile" />
+            <img src="profile.jpg" alt="" width="40" height="40" loading="lazy" decoding="async" />
         </div>
         <div class="post-content">
             <div class="meta">
-                <span class="handle">${highlightedHandle}</span>
-                <div class="separator"></div>
-                <a href="${postLink}" target="_blank" rel="noopener noreferrer" class="date" title="${fullDate}">${formattedDate}</a>
-                <div class="separator"></div>
-                <span class="post-type ${typeClass}">
-                    <span class="material-symbols-outlined">${typeIcon}</span>
-                    <span>${postType}</span>
+                <span class="handle">ZohranKMamdani</span>
+                <span class="separator" aria-hidden="true"></span>
+                <a href="${safeLink}" target="_blank" rel="noopener noreferrer" class="date" title="${escapeHTML(formatFullDate(post.date))}">${escapeHTML(formatShortDate(post.date))}</a>
+                <span class="separator" aria-hidden="true"></span>
+                <span class="post-type type-${postType.toLowerCase()}" title="${postType}">
+                    <span class="material-symbols-outlined" aria-hidden="true">${POST_TYPE_ICONS[postType]}</span>
+                    <span class="post-type-label">${postType}</span>
                 </span>
-                <div class="separator"></div>
-                <a href="${postLink}" target="_blank" rel="noopener noreferrer" class="post-link-inline" title="View post on X">
-                    <span class="material-symbols-outlined">open_in_new</span>
+                <a href="${safeLink}" target="_blank" rel="noopener noreferrer" class="post-link-inline" title="View post on X" aria-label="View post on X">
+                    <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
                 </a>
             </div>
-            <div class="text">${highlightedText}</div>
+            <div class="text">${renderPostText(post.text, ranges)}</div>
         </div>
     `;
-    
-    // Make the entire post clickable except for links
-    postDiv.addEventListener('click', (e) => {
-        // Don't trigger if clicking on a link or button
-        if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON' || e.target.closest('a')) {
-            return;
-        }
-        
-        // Open the post in a new tab
-        if (postLink && postLink !== '#') {
-            window.open(postLink, '_blank', 'noopener,noreferrer');
-        }
+
+    // The whole card opens the post, except links, and except when the
+    // reader is selecting text to copy it.
+    article.addEventListener('click', event => {
+        if (event.target.closest('a, button')) return;
+        if (String(window.getSelection() || '').length > 0) return;
+        if (postLink) window.open(postLink, '_blank', 'noopener,noreferrer');
     });
-    
-    return postDiv;
+
+    return article;
 }
 
-// Parse post date from string format "M/D/YYYY H:MM"
-function parsePostDate(dateString) {
-    if (!dateString) return null;
-    
-    try {
-        // Handle format like "6/28/2025 10:56"
-        const [datePart, timePart] = dateString.split(' ');
-        const [month, day, year] = datePart.split('/');
-        const [hour, minute] = timePart ? timePart.split(':') : ['0', '0'];
-        
-        return new Date(year, month - 1, day, hour, minute);
-    } catch (error) {
-        console.warn('Failed to parse date:', dateString);
-        return null;
-    }
-}
-
-// Handle date filter application
-function handleDateFilter() {
-    const startDate = startDateInput.value;
-    const endDate = endDateInput.value;
-    
-    currentStartDate = startDate ? new Date(startDate) : null;
-    currentEndDate = endDate ? new Date(endDate + 'T23:59:59') : null; // End of day
-    
-    applyFilters();
-    updatePostCount();
-    displayPosts(filteredPosts, true);
-    updateDateFilterResults();
-}
-
-// Clear date filters
-function clearDateFilters() {
-    startDateInput.value = '';
-    endDateInput.value = '';
-    currentStartDate = null;
-    currentEndDate = null;
-    
-    // Remove active class from preset buttons
-    presetButtons.forEach(btn => btn.classList.remove('active'));
-    
-    applyFilters();
-    updatePostCount();
-    displayPosts(filteredPosts, true);
-    updateDateFilterResults();
-}
-
-// Apply date preset (last N days)
-function applyDatePreset(days) {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - days);
-    
-    // Set input values
-    startDateInput.value = startDate.toISOString().split('T')[0];
-    endDateInput.value = endDate.toISOString().split('T')[0];
-    
-    // Apply filter
-    currentStartDate = startDate;
-    currentEndDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000 - 1); // End of day
-    
-    applyFilters();
-    updatePostCount();
-    displayPosts(filteredPosts, true);
-    updateDateFilterResults();
-}
-
-// Validate date inputs
-function validateDateInputs() {
-    const startDate = startDateInput.value;
-    const endDate = endDateInput.value;
-    
-    if (startDate && endDate) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        
-        if (start > end) {
-            startDateInput.setCustomValidity('Start date must be before end date');
-            endDateInput.setCustomValidity('End date must be after start date');
-        } else {
-            startDateInput.setCustomValidity('');
-            endDateInput.setCustomValidity('');
-        }
-    }
-}
-
-// Update date filter results display
-function updateDateFilterResults() {
-    if (!currentStartDate && !currentEndDate) return;
-    
-    const hasSearch = !!currentSearchTerm;
-    const dateRange = formatDateRange(currentStartDate, currentEndDate);
-    
-    if (hasSearch) {
-        searchResults.innerHTML += ` <span style="color: var(--text-muted);">• Filtered by date: ${dateRange}</span>`;
-    } else {
-        searchResults.innerHTML = `Showing posts from ${dateRange}`;
-    }
-}
-
-// Format date range for display
-function formatDateRange(startDate, endDate) {
-    const options = { year: 'numeric', month: 'short', day: 'numeric' };
-    
-    if (startDate && endDate) {
-        return `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', options)}`;
-    } else if (startDate) {
-        return `${startDate.toLocaleDateString('en-US', options)} onwards`;
-    } else if (endDate) {
-        return `up to ${endDate.toLocaleDateString('en-US', options)}`;
-    }
-    
-    return '';
-}
-
-// Update search results text with enhanced search info
-function updateSearchResults(searchTerm) {
-    if (!searchTerm) {
-        searchResults.textContent = '';
-        return;
-    }
-    
-    const count = filteredPosts.length;
-    const totalCount = allPosts.length;
-    const processedTerms = processSearchTerms(searchTerm);
-    
-    if (count === 0) {
-        searchResults.innerHTML = `No results found for "<strong>${escapeHTML(searchTerm)}</strong>"`;
-    } else if (count === totalCount) {
-        searchResults.innerHTML = `All ${count} posts match "<strong>${escapeHTML(searchTerm)}</strong>"`;
-    } else {
-        const searchInfo = processedTerms.length > 0 ? 
-            `<br><span style="color: var(--text-muted); font-size: 0.875rem;">
-                Searching for: ${processedTerms.map(t => `"${t.original}"`).join(', ')}${processedTerms.some(t => t.original !== t.stemmed) ? ' (including word variations)' : ''}
-            </span>` : '';
-        
-        searchResults.innerHTML = `Found ${count} of ${totalCount} posts matching "<strong>${escapeHTML(searchTerm)}</strong>"${searchInfo}`;
-    }
-}
-
-// Update post count
-function updatePostCount() {
-    const count = filteredPosts.length;
-    const total = allPosts.length;
-    
-    if (currentSearchTerm && count !== total) {
-        postCountElement.textContent = `${count} / ${total} posts`;
-    } else {
-        postCountElement.textContent = `${total} posts`;
-    }
-}
-
-// Show no results message
 function showNoResults() {
-    container.innerHTML = `
-        <div style="
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 40px 16px;
-            text-align: center;
-            color: var(--text-secondary);
-            min-height: 300px;
-        ">
-            <span class="material-symbols-outlined" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">search_off</span>
-            <h3 style="margin-bottom: 8px; color: var(--text-primary); font-weight: 800; font-size: 20px;">No posts found</h3>
-            <p style="font-size: 15px; color: var(--text-secondary); margin: 0;">Try adjusting your search terms or <button onclick="clearSearch()" style="background: none; border: none; color: var(--primary-color); cursor: pointer; text-decoration: underline; font: inherit;">clear the search</button></p>
-        </div>
+    const hasSearch = !!currentSearchTerm;
+    const hasDate = !!(currentStartDate || currentEndDate);
+    const what = hasSearch && hasDate ? 'search and date filter'
+        : hasSearch ? 'search' : 'date filter';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'no-results';
+    wrapper.innerHTML = `
+        <span class="material-symbols-outlined" aria-hidden="true">search_off</span>
+        <h3>No posts found</h3>
+        <p>Try different words or dates, or <button type="button" class="link-button">clear the ${what}</button>.</p>
     `;
+    wrapper.querySelector('button').addEventListener('click', clearAllPostFilters);
+    container.appendChild(wrapper);
 }
 
-// Debounce function for search
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// Format date string
-function formatDate(dateString) {
-    if (!dateString) return 'Unknown date';
-    
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return dateString;
-        
-        const now = new Date();
-        const diffTime = Math.abs(now - date);
-        const diffMinutes = Math.floor(diffTime / (1000 * 60));
-        const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        
-        if (diffMinutes < 60) {
-            return diffMinutes === 0 ? 'now' : `${diffMinutes}m`;
-        } else if (diffHours < 24) {
-            return `${diffHours}h`;
-        } else if (diffDays < 30) {
-            return date.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric'
-            });
-        } else {
-            return date.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
-        }
-    } catch (error) {
-        return dateString;
-    }
-}
-
-// Format full date with time for hover title
-function formatFullDate(dateString) {
-    if (!dateString) return 'Unknown date';
-    
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return dateString;
-        
-        return date.toLocaleString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
-    } catch (error) {
-        return dateString;
-    }
-}
-
-// Show error message
 function showError(message) {
     loading.style.display = 'none';
-    container.innerHTML = '';
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'error-state';
-    errorDiv.innerHTML = `
-        <span class="material-symbols-outlined">error</span>
-        <h2>Failed to Load Posts</h2>
-        <p>There was an issue fetching the posts. Please try again later.</p>
-        <small>Error: ${escapeHTML(message)}</small>
+    container.innerHTML = `
+        <div class="error-state">
+            <span class="material-symbols-outlined" aria-hidden="true">error</span>
+            <h2>Failed to Load Posts</h2>
+            <p>There was an issue fetching the posts. Please try again later.</p>
+            <small>Error: ${escapeHTML(message)}</small>
+        </div>
     `;
-    container.appendChild(errorDiv);
     container.style.display = 'block';
 }
 
-// Enhanced HTML escape function
-function escapeHTML(str) {
-    if (typeof str !== 'string') return '';
-    
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+// ===== POSTS: FILTERING =====
+
+function hasActivePostFilters() {
+    return !!(currentSearchTerm || currentStartDate || currentEndDate);
 }
 
-// Add smooth scrolling for better UX
-function addSmoothScrolling() {
-    document.documentElement.style.scrollBehavior = 'smooth';
+function applyFilters() {
+    let filtered = allPosts;
+    if (currentTerms.length) {
+        filtered = filtered.filter(post => postMatchesTerms(post, currentTerms));
+    }
+    if (currentStartDate || currentEndDate) {
+        filtered = filtered.filter(post => {
+            if (!post.date) return false;
+            if (currentStartDate && post.date < currentStartDate) return false;
+            if (currentEndDate && post.date > currentEndDate) return false;
+            return true;
+        });
+    }
+    filteredPosts = filtered;
 }
 
-// Handle responsive placeholder text
-function updateSearchPlaceholder() {
-    const searchInput = document.getElementById('search-input');
-    const isMobile = window.innerWidth <= 768;
-    
-    if (isMobile) {
-        searchInput.placeholder = "Search posts...";
-    } else {
-        searchInput.placeholder = "Search posts (try: 'rent freeze', 'childcare', 'buses')...";
+// Single entry point after any search or date change.
+function refreshPosts() {
+    applyFilters();
+    updatePostCount();
+    updateResultsSummary();
+    renderPosts();
+}
+
+function updatePostCount() {
+    const total = allPosts.length.toLocaleString();
+    postCountElement.textContent = hasActivePostFilters()
+        ? `${filteredPosts.length.toLocaleString()} of ${total} posts`
+        : `${total} posts`;
+}
+
+function updateResultsSummary() {
+    const count = filteredPosts.length.toLocaleString();
+    const hasDate = !!(currentStartDate || currentEndDate);
+    const dateText = hasDate ? escapeHTML(formatDateRange(currentStartDate, currentEndDate)) : '';
+    let html = '';
+
+    if (currentSearchTerm) {
+        const query = `"<strong>${escapeHTML(currentSearchTerm)}</strong>"`;
+        html = filteredPosts.length
+            ? `Found ${count} ${filteredPosts.length === 1 ? 'post' : 'posts'} matching ${query}`
+            : `No posts match ${query}`;
+        if (hasDate) html += ` <span class="muted">from ${dateText}</span>`;
+
+        const typedWords = tokenize(currentSearchTerm);
+        if (currentTerms.length && currentTerms.length < new Set(typedWords).size) {
+            html += `<br><span class="muted">Searching for: ${currentTerms.map(t => `"${escapeHTML(t.original)}"`).join(', ')}</span>`;
+        }
+    } else if (hasDate) {
+        html = `${count} ${filteredPosts.length === 1 ? 'post' : 'posts'} from ${dateText}`;
+    }
+
+    searchResults.innerHTML = html;
+}
+
+// ===== POSTS: SEARCH UI =====
+
+function initializeSearch() {
+    searchInput.addEventListener('input', debounce(handleSearch, 250));
+    searchInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            handleSearch();
+        } else if (event.key === 'Escape' && searchInput.value) {
+            clearSearch();
+        }
+    });
+    clearButton.addEventListener('click', () => {
+        clearSearch();
+        searchInput.focus();
+    });
+
+    const helpButton = document.getElementById('search-help');
+    const helpPanel = document.getElementById('search-help-panel');
+    const setHelpOpen = open => {
+        helpPanel.classList.toggle('show', open);
+        helpButton.setAttribute('aria-expanded', String(open));
+    };
+    helpButton.addEventListener('click', event => {
+        event.stopPropagation();
+        setHelpOpen(!helpPanel.classList.contains('show'));
+    });
+    document.addEventListener('click', event => {
+        if (!helpPanel.contains(event.target) && !helpButton.contains(event.target)) setHelpOpen(false);
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') setHelpOpen(false);
+    });
+    searchInput.addEventListener('focus', () => setHelpOpen(false));
+}
+
+function handleSearch() {
+    const searchTerm = searchInput.value.trim();
+    clearButton.style.display = searchTerm ? 'flex' : 'none';
+    // Enter and the debounced input handler both call this; skip the repeat.
+    if (searchTerm === currentSearchTerm) return;
+    currentSearchTerm = searchTerm;
+    currentTerms = processSearchTerms(searchTerm);
+    refreshPosts();
+}
+
+function clearSearch() {
+    searchInput.value = '';
+    handleSearch();
+}
+
+function clearAllPostFilters() {
+    searchInput.value = '';
+    clearButton.style.display = 'none';
+    currentSearchTerm = '';
+    currentTerms = [];
+    resetDateInputs();
+    refreshPosts();
+}
+
+// ===== POSTS: DATE FILTER UI =====
+
+function initializeDateFilter() {
+    toggleDateFilter.addEventListener('click', () => {
+        const expanded = dateFilterControls.classList.toggle('expanded');
+        toggleDateFilter.classList.toggle('expanded', expanded);
+        toggleDateFilter.setAttribute('aria-expanded', String(expanded));
+    });
+
+    applyDateFilterButton.addEventListener('click', handleDateFilter);
+    clearDateFilterButton.addEventListener('click', () => {
+        resetDateInputs();
+        refreshPosts();
+    });
+
+    [startDateInput, endDateInput].forEach(input => {
+        input.addEventListener('change', () => {
+            startDateInput.setCustomValidity('');
+            endDateInput.setCustomValidity('');
+        });
+        input.addEventListener('keydown', event => {
+            if (event.key === 'Enter') handleDateFilter();
+        });
+    });
+}
+
+// One button per year in the archive, newest first. Fixed "last 7 days"
+// presets would always be empty because the archive ends in July 2025.
+function buildYearPresets() {
+    const years = [...new Set(allPosts.map(post => post.date && post.date.getFullYear()).filter(Boolean))]
+        .sort((a, b) => b - a);
+    datePresets.innerHTML = '';
+    for (const year of years) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'preset-btn';
+        button.dataset.year = year;
+        button.textContent = year;
+        button.addEventListener('click', () => {
+            startDateInput.value = `${year}-01-01`;
+            endDateInput.value = `${year}-12-31`;
+            handleDateFilter();
+        });
+        datePresets.appendChild(button);
     }
 }
 
-// Initialize the application
+function markActiveYear() {
+    const start = startDateInput.value;
+    const end = endDateInput.value;
+    datePresets.querySelectorAll('.preset-btn').forEach(button => {
+        const year = button.dataset.year;
+        button.classList.toggle('active', start === `${year}-01-01` && end === `${year}-12-31`);
+    });
+}
+
+function handleDateFilter() {
+    const start = parseInputDate(startDateInput.value);
+    const end = parseInputDate(endDateInput.value, true);
+
+    if (start && end && start > end) {
+        endDateInput.setCustomValidity('The end date must be on or after the start date.');
+        endDateInput.reportValidity();
+        return;
+    }
+
+    currentStartDate = start;
+    currentEndDate = end;
+    markActiveYear();
+    refreshPosts();
+}
+
+function resetDateInputs() {
+    startDateInput.value = '';
+    endDateInput.value = '';
+    startDateInput.setCustomValidity('');
+    endDateInput.setCustomValidity('');
+    currentStartDate = null;
+    currentEndDate = null;
+    markActiveYear();
+}
+
+// ===== GENERAL UI =====
+
+function debounce(func, wait) {
+    let timeout;
+    return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+    };
+}
+
+function updateSearchPlaceholder() {
+    const mobile = window.innerWidth <= 768;
+    searchInput.placeholder = mobile
+        ? 'Search posts...'
+        : "Search posts (try: 'rent freeze', 'childcare', 'buses')...";
+    document.getElementById('donors-search-input').placeholder = mobile
+        ? 'Search donors...'
+        : 'Search by name, city, ZIP or intermediary...';
+}
+
+function showTab(targetTab) {
+    document.querySelectorAll('.nav-link').forEach(link => {
+        const active = link.dataset.tab === targetTab;
+        link.classList.toggle('active', active);
+        link.setAttribute('aria-selected', String(active));
+    });
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.hidden = tab.id !== `${targetTab}-tab`;
+    });
+    if (targetTab === 'donors' && allDonors.length === 0 && !donorsLoading) {
+        loadDonorData();
+    }
+}
+
+function initializeTabSwitching() {
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', event => {
+            event.preventDefault();
+            const tab = link.dataset.tab;
+            showTab(tab);
+            // Keep the tab in the URL so it survives a refresh and can be shared.
+            history.replaceState(null, '', `#${tab}`);
+        });
+    });
+    window.addEventListener('hashchange', () => {
+        showTab(location.hash === '#donors' ? 'donors' : 'posts');
+    });
+}
+
 function init() {
-    addSmoothScrolling();
-    loadPosts();
     initializeSearch();
     initializeDateFilter();
     updateSearchPlaceholder();
     initializeTabSwitching();
     initializeDonorDatabase();
-    
-    // Update placeholder on window resize
-    window.addEventListener('resize', updateSearchPlaceholder);
+    window.addEventListener('resize', debounce(updateSearchPlaceholder, 150));
+    loadPosts();
+    showTab(location.hash === '#donors' ? 'donors' : 'posts');
 }
 
-// ===== DONOR DATABASE FUNCTIONALITY =====
+// ===== DONOR DATABASE =====
 
-// Donor database variables
+const DONORS_PER_PAGE = 50;
 let allDonors = [];
 let filteredDonors = [];
+let donorsShown = 0;
+let donorsLoading = false;
 let currentDonorSearchTerm = '';
-let currentFilters = {
-    amount: '',
-    borough: '',
-    intermediary: '',
-    sort: 'date-desc'
+let currentDonorTerms = [];
+const DEFAULT_DONOR_FILTERS = { amount: '', borough: '', intermediary: '', sort: 'date-desc' };
+let currentFilters = { ...DEFAULT_DONOR_FILTERS };
+
+const BOROUGHS = { M: 'Manhattan', K: 'Brooklyn', Q: 'Queens', X: 'Bronx', R: 'Staten Island' };
+const PAYMENT_METHODS = {
+    '1': 'Cash', '2': 'Check', '3': 'Credit Card',
+    '4': 'Online/Electronic', '5': 'Money Order', '6': 'Other'
 };
 
-// Initialize tab switching
-function initializeTabSwitching() {
-    const navLinks = document.querySelectorAll('.nav-link');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    navLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const targetTab = link.getAttribute('data-tab');
-            
-            // Update active nav link
-            navLinks.forEach(l => l.classList.remove('active'));
-            link.classList.add('active');
-            
-            // Show target tab content
-            tabContents.forEach(tab => {
-                if (tab.id === `${targetTab}-tab`) {
-                    tab.style.display = 'block';
-                } else {
-                    tab.style.display = 'none';
-                }
-            });
-            
-            // Load donor data if switching to donors tab
-            if (targetTab === 'donors' && allDonors.length === 0) {
-                loadDonorData();
-            }
-        });
-    });
-}
-
-// Initialize donor database
 function initializeDonorDatabase() {
-    // Search functionality
     const donorSearchInput = document.getElementById('donors-search-input');
     const clearDonorSearch = document.getElementById('clear-donors-search');
-    
-    if (donorSearchInput) {
-        donorSearchInput.addEventListener('input', debounce(handleDonorSearch, 300));
-    }
-    
-    if (clearDonorSearch) {
-        clearDonorSearch.addEventListener('click', clearDonorSearchHandler);
-    }
-    
-    // Filter functionality
-    const filters = ['amount-filter', 'borough-filter', 'intermediary-filter', 'sort-filter'];
-    filters.forEach(filterId => {
-        const filterElement = document.getElementById(filterId);
-        if (filterElement) {
-            filterElement.addEventListener('change', handleDonorFilters);
-        }
+
+    donorSearchInput.addEventListener('input', debounce(handleDonorSearch, 250));
+    clearDonorSearch.addEventListener('click', () => {
+        donorSearchInput.value = '';
+        handleDonorSearch();
+        donorSearchInput.focus();
     });
-    
-    // Reset filters functionality
-    const resetFiltersBtn = document.getElementById('reset-filters');
-    if (resetFiltersBtn) {
-        resetFiltersBtn.addEventListener('click', resetAllFilters);
-    }
-    
-    // Initialize filters toggle functionality
+
+    ['amount-filter', 'borough-filter', 'intermediary-filter', 'sort-filter'].forEach(id => {
+        document.getElementById(id).addEventListener('change', handleDonorFilters);
+    });
+    document.getElementById('reset-filters').addEventListener('click', resetAllFilters);
+    document.getElementById('donors-load-more').addEventListener('click', showMoreDonors);
+
     initializeFiltersToggle();
 }
 
-// Initialize filters toggle functionality
 function initializeFiltersToggle() {
     const toggleButton = document.getElementById('toggle-donor-filters');
     const filtersContainer = document.getElementById('donors-filters-container');
-    
-    if (toggleButton && filtersContainer) {
-        toggleButton.addEventListener('click', () => {
-            const isExpanded = toggleButton.classList.contains('expanded');
-            
-            if (isExpanded) {
-                // Collapse filters
-                toggleButton.classList.remove('expanded');
-                filtersContainer.classList.remove('expanded');
-                filtersContainer.classList.add('collapsed');
-            } else {
-                // Expand filters
-                toggleButton.classList.add('expanded');
-                filtersContainer.classList.remove('collapsed');
-                filtersContainer.classList.add('expanded');
-            }
-        });
-        
-        // Set initial state on mobile
-        if (window.innerWidth <= 768) {
-            filtersContainer.classList.add('collapsed');
-        } else {
-            filtersContainer.classList.add('expanded');
-        }
-        
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            if (window.innerWidth > 768) {
-                // On desktop, always show filters
-                filtersContainer.classList.remove('collapsed');
-                filtersContainer.classList.add('expanded');
-                toggleButton.classList.remove('expanded');
-            } else {
-                // On mobile, respect the current toggle state
-                if (!toggleButton.classList.contains('expanded')) {
-                    filtersContainer.classList.add('collapsed');
-                    filtersContainer.classList.remove('expanded');
-                }
-            }
-        });
-    }
+    const isMobile = () => window.innerWidth <= 768;
+
+    const setExpanded = expanded => {
+        toggleButton.classList.toggle('expanded', expanded);
+        toggleButton.setAttribute('aria-expanded', String(expanded));
+        filtersContainer.classList.toggle('expanded', expanded);
+        filtersContainer.classList.toggle('collapsed', !expanded);
+    };
+
+    toggleButton.addEventListener('click', () => {
+        setExpanded(!toggleButton.classList.contains('expanded'));
+    });
+
+    // Filters are always visible on desktop and collapsible on mobile.
+    let wasMobile = isMobile();
+    setExpanded(!wasMobile);
+    window.addEventListener('resize', debounce(() => {
+        const mobile = isMobile();
+        if (mobile !== wasMobile) setExpanded(!mobile);
+        wasMobile = mobile;
+    }, 150));
 }
 
-// Load donor data from JSON
 async function loadDonorData() {
     const donorLoading = document.getElementById('donors-loading');
     const donorContainer = document.getElementById('donors-container');
-    const donorEmptyState = document.getElementById('donors-empty-state');
-    
+    donorsLoading = true;
+
     try {
         donorLoading.style.display = 'flex';
         donorContainer.style.display = 'none';
-        donorEmptyState.style.display = 'none';
-        
+
         const response = await fetch('zohran-donor.json');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        allDonors = await response.json();
-        
-        // Process and clean the data
-        allDonors = allDonors.map((donor, index) => ({
-            ...donor,
-            id: index,
-            // Clean and parse numeric values
-            DONATION: parseFloat(donor.DONATION) || 0,
-            'MATCH-AMOUNT': parseFloat(donor['MATCH-AMOUNT']) || 0,
-            // Parse date
-            donationDate: parseDonorDate(donor['DATE OF DONATION']),
-            // Check if via intermediary
-            hasIntermediary: !!(donor.INTERMEDIARY_NAME && donor.INTERMEDIARY_NAME.trim())
-        }));
-        
-        filteredDonors = [...allDonors];
-        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const donors = await response.json();
+
+        allDonors = donors.map((donor, index) => {
+            const amount = parseFloat(donor.DONATION) || 0;
+            const intermediary = (donor.INTERMEDIARY_NAME || '').trim();
+            return {
+                ...donor,
+                id: index,
+                DONATION: amount,
+                'MATCH-AMOUNT': parseFloat(donor['MATCH-AMOUNT']) || 0,
+                'PREVIOUS DONATION': parseFloat(donor['PREVIOUS DONATION']) || 0,
+                donationDate: parseDonorDate(donor['DATE OF DONATION']),
+                hasIntermediary: !!intermediary,
+                isRefund: amount < 0,
+                _search: normalizeText([
+                    donor.NAME, donor.CITY, donor.STATE, donor.ZIP, donor.EMPCITY,
+                    donor.EMPSTATE, intermediary, donor.INTERMEDIARY_EMP_NAME
+                ].filter(Boolean).join(' '))
+            };
+        });
+
         updateDonorAnalytics();
-        displayDonors();
-        
+        applyDonorFilters();
     } catch (error) {
         console.error('Error loading donor data:', error);
         showDonorError('Failed to load donor data. Please try again later.');
     } finally {
+        donorsLoading = false;
         donorLoading.style.display = 'none';
     }
 }
 
-// Parse date in various formats
 function parseDonorDate(dateString) {
     if (!dateString) return null;
-    
-    // Try different date formats
-    const formats = [
-        /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,  // M/D/YYYY
-        /^(\d{4})-(\d{2})-(\d{2})$/,        // YYYY-MM-DD
-        /^(\d{2})-(\d{2})-(\d{4})$/         // MM-DD-YYYY
-    ];
-    
-    for (let format of formats) {
-        const match = dateString.match(format);
-        if (match) {
-            if (format === formats[0]) { // M/D/YYYY
-                return new Date(match[3], match[1] - 1, match[2]);
-            } else if (format === formats[1]) { // YYYY-MM-DD
-                return new Date(match[1], match[2] - 1, match[3]);
-            } else if (format === formats[2]) { // MM-DD-YYYY
-                return new Date(match[3], match[1] - 1, match[2]);
-            }
-        }
-    }
-    
-    // Fallback to Date constructor
+    let match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(dateString);
+    if (match) return new Date(+match[3], match[1] - 1, +match[2]);
+    match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+    if (match) return new Date(+match[1], match[2] - 1, +match[3]);
     const parsed = new Date(dateString);
     return isNaN(parsed.getTime()) ? null : parsed;
 }
 
-// Update analytics dashboard
-function updateDonorAnalytics() {
-    const totalDonations = allDonors.reduce((sum, donor) => sum + donor.DONATION, 0);
-    const totalDonors = allDonors.length;
-    const intermediaryDonations = allDonors
-        .filter(donor => donor.hasIntermediary)
-        .reduce((sum, donor) => sum + donor.DONATION, 0);
-    const averageDonation = totalDonors > 0 ? totalDonations / totalDonors : 0;
-    
-    // Update analytics display
-    document.getElementById('total-donations').textContent = formatCurrency(totalDonations);
-    document.getElementById('total-donors').textContent = totalDonors.toLocaleString();
-    document.getElementById('intermediary-donations').textContent = formatCurrency(intermediaryDonations);
-    document.getElementById('average-donation').textContent = formatCurrency(averageDonation);
-    
-    // Update donors count
-    document.getElementById('donors-count').textContent = 
-        `${filteredDonors.length.toLocaleString()} of ${totalDonors.toLocaleString()} donors`;
-    
-    // Update reset button state when analytics are updated
-    updateResetButtonState();
-}
-
-// Format currency
-function formatCurrency(amount) {
+function formatCurrency(amount, { cents = false } = {}) {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0
+        maximumFractionDigits: cents ? 2 : 0
     }).format(amount);
 }
 
-// Handle donor search
+// Refunds are recorded as separate negative rows with no intermediary, so the
+// headline figures use gross contributions and show refunds alongside.
+function updateDonorAnalytics() {
+    const contributions = allDonors.filter(donor => donor.DONATION > 0);
+    const gross = contributions.reduce((sum, donor) => sum + donor.DONATION, 0);
+    const refunds = allDonors.reduce((sum, donor) => sum + (donor.isRefund ? donor.DONATION : 0), 0);
+    const viaIntermediary = contributions
+        .filter(donor => donor.hasIntermediary)
+        .reduce((sum, donor) => sum + donor.DONATION, 0);
+    // Approximation: the data has no donor ID, so count distinct name + ZIP.
+    const uniqueDonors = new Set(contributions.map(donor => `${donor.NAME}|${donor.ZIP}`)).size;
+
+    const set = (id, text) => { document.getElementById(id).textContent = text; };
+    set('total-donations', formatCurrency(gross));
+    set('total-refunds', refunds < 0 ? `${formatCurrency(-refunds)} refunded` : '');
+    set('total-donors', contributions.length.toLocaleString());
+    set('unique-donors', `About ${uniqueDonors.toLocaleString()} unique donors`);
+    set('intermediary-donations', formatCurrency(viaIntermediary));
+    // Floor so 99.99% never displays as 100%.
+    const share = gross > 0 ? Math.floor((viaIntermediary / gross) * 1000) / 10 : 0;
+    set('intermediary-share', gross > 0 ? `${share}% of total raised` : '');
+    set('average-donation', formatCurrency(contributions.length ? gross / contributions.length : 0, { cents: true }));
+}
+
 function handleDonorSearch() {
-    const searchInput = document.getElementById('donors-search-input');
-    currentDonorSearchTerm = searchInput.value.trim();
+    currentDonorSearchTerm = document.getElementById('donors-search-input').value.trim();
+    currentDonorTerms = processSearchTerms(currentDonorSearchTerm);
+    document.getElementById('clear-donors-search').style.display = currentDonorSearchTerm ? 'flex' : 'none';
     applyDonorFilters();
 }
 
-// Clear donor search
-function clearDonorSearchHandler() {
-    const searchInput = document.getElementById('donors-search-input');
-    searchInput.value = '';
-    currentDonorSearchTerm = '';
-    applyDonorFilters();
-}
-
-// Handle donor filters
 function handleDonorFilters() {
-    currentFilters.amount = document.getElementById('amount-filter').value;
-    currentFilters.borough = document.getElementById('borough-filter').value;
-    currentFilters.intermediary = document.getElementById('intermediary-filter').value;
-    currentFilters.sort = document.getElementById('sort-filter').value;
-    
+    currentFilters = {
+        amount: document.getElementById('amount-filter').value,
+        borough: document.getElementById('borough-filter').value,
+        intermediary: document.getElementById('intermediary-filter').value,
+        sort: document.getElementById('sort-filter').value
+    };
     applyDonorFilters();
 }
 
-// Apply all donor filters
+function matchesAmount(amount, range) {
+    switch (range) {
+        case '0-25': return amount > 0 && amount <= 25;
+        case '25-100': return amount > 25 && amount <= 100;
+        case '100-500': return amount > 100 && amount <= 500;
+        case '500+': return amount > 500;
+        case 'refund': return amount < 0;
+        default: return true;
+    }
+}
+
+const DONOR_SORTS = {
+    'date-desc': (a, b) => (b.donationDate || 0) - (a.donationDate || 0),
+    'date-asc': (a, b) => (a.donationDate || 0) - (b.donationDate || 0),
+    'amount-desc': (a, b) => b.DONATION - a.DONATION,
+    'amount-asc': (a, b) => a.DONATION - b.DONATION,
+    'name-asc': (a, b) => (a.NAME || '').localeCompare(b.NAME || ''),
+    'name-desc': (a, b) => (b.NAME || '').localeCompare(a.NAME || '')
+};
+
 function applyDonorFilters() {
-    filteredDonors = [...allDonors];
-    
-    // Apply search filter
-    if (currentDonorSearchTerm) {
-        const searchTerms = processSearchTerms(currentDonorSearchTerm);
-        filteredDonors = filteredDonors.filter(donor => {
-            const searchableText = normalizeText([
-                donor.NAME || '',
-                donor.CITY || '',
-                donor.STATE || '',
-                donor.EMPCITY || '',
-                donor.EMPSTATE || '',
-                donor.INTERMEDIARY_NAME || ''
-            ].join(' '));
-            
-            return searchTerms.every(term => {
-                return searchableText.includes(term.original) ||
-                       searchableText.includes(term.stemmed);
-            });
-        });
-    }
-    
-    // Apply amount filter
-    if (currentFilters.amount) {
-        filteredDonors = filteredDonors.filter(donor => {
-            const amount = donor.DONATION;
-            switch (currentFilters.amount) {
-                case '0-25': return amount >= 0 && amount <= 25;
-                case '25-100': return amount > 25 && amount <= 100;
-                case '100-500': return amount > 100 && amount <= 500;
-                case '500+': return amount > 500;
-                default: return true;
-            }
-        });
-    }
-    
-    // Apply borough filter
-    if (currentFilters.borough) {
-        filteredDonors = filteredDonors.filter(donor => 
-            donor.BOROUGHCD === currentFilters.borough
-        );
-    }
-    
-    // Apply intermediary filter
-    if (currentFilters.intermediary) {
-        if (currentFilters.intermediary === 'yes') {
-            filteredDonors = filteredDonors.filter(donor => donor.hasIntermediary);
-        } else if (currentFilters.intermediary === 'no') {
-            filteredDonors = filteredDonors.filter(donor => !donor.hasIntermediary);
-        }
-    }
-    
-    // Apply sorting
-    filteredDonors.sort((a, b) => {
-        switch (currentFilters.sort) {
-            case 'date-desc':
-                return (b.donationDate || 0) - (a.donationDate || 0);
-            case 'date-asc':
-                return (a.donationDate || 0) - (b.donationDate || 0);
-            case 'amount-desc':
-                return b.DONATION - a.DONATION;
-            case 'amount-asc':
-                return a.DONATION - b.DONATION;
-            case 'name-asc':
-                return (a.NAME || '').localeCompare(b.NAME || '');
-            case 'name-desc':
-                return (b.NAME || '').localeCompare(a.NAME || '');
-            default:
-                return 0;
-        }
+    if (!allDonors.length) return;
+    const { amount, borough, intermediary, sort } = currentFilters;
+
+    filteredDonors = allDonors.filter(donor => {
+        if (currentDonorTerms.length && !currentDonorTerms.every(term => donor._search.includes(term.original))) return false;
+        if (amount && !matchesAmount(donor.DONATION, amount)) return false;
+        if (borough && donor.BOROUGHCD !== borough) return false;
+        if (intermediary === 'yes' && !donor.hasIntermediary) return false;
+        if (intermediary === 'no' && donor.hasIntermediary) return false;
+        return true;
     });
-    
-    updateDonorSearchResults();
-    displayDonors();
+    filteredDonors.sort(DONOR_SORTS[sort] || DONOR_SORTS['date-desc']);
+
+    donorsShown = 0;
+    document.getElementById('donors-container').innerHTML = '';
+    showMoreDonors();
+    updateDonorCounts();
 }
 
-// Update search results display
-function updateDonorSearchResults() {
-    const resultsElement = document.getElementById('donors-search-results');
-    const total = allDonors.length;
-    const filtered = filteredDonors.length;
-    
-    if (currentDonorSearchTerm || Object.values(currentFilters).some(v => v && v !== 'date-desc')) {
-        resultsElement.textContent = `Showing ${filtered.toLocaleString()} of ${total.toLocaleString()} donors`;
-    } else {
-        resultsElement.textContent = `${total.toLocaleString()} total donors`;
-    }
-    
-    // Update donors count
-    document.getElementById('donors-count').textContent = 
-        `${filtered.toLocaleString()} of ${total.toLocaleString()} donors`;
-    
-    // Update reset button state
-    updateResetButtonState();
+function hasActiveDonorFilters() {
+    return !!currentDonorSearchTerm ||
+        Object.keys(DEFAULT_DONOR_FILTERS).some(key => currentFilters[key] !== DEFAULT_DONOR_FILTERS[key]);
 }
 
-// Update reset button state based on active filters
-function updateResetButtonState() {
-    const resetBtn = document.getElementById('reset-filters');
-    if (!resetBtn) return;
-    
-    const hasActiveFilters = currentDonorSearchTerm || 
-        Object.values(currentFilters).some(v => v && v !== 'date-desc');
-    
-    resetBtn.disabled = !hasActiveFilters;
-    
-    if (hasActiveFilters) {
-        resetBtn.textContent = '';
-        resetBtn.innerHTML = `
-            <span class="material-symbols-outlined">restart_alt</span>
-            Reset Filters
-        `;
-    } else {
-        resetBtn.textContent = '';
-        resetBtn.innerHTML = `
-            <span class="material-symbols-outlined">restart_alt</span>
-            No Active Filters
-        `;
-    }
+function updateDonorCounts() {
+    const total = allDonors.length.toLocaleString();
+    const filtered = filteredDonors.length.toLocaleString();
+    const shown = Math.min(donorsShown, filteredDonors.length).toLocaleString();
+
+    document.getElementById('donors-count').textContent = hasActiveDonorFilters()
+        ? `${filtered} of ${total} contributions match`
+        : `${total} contributions`;
+    document.getElementById('donors-search-results').textContent = filteredDonors.length
+        ? `Showing ${shown} of ${filtered}`
+        : '';
+    document.getElementById('reset-filters').disabled = !hasActiveDonorFilters();
 }
 
-// Display donors
-function displayDonors() {
-    const container = document.getElementById('donors-container');
-    const emptyState = document.getElementById('donors-empty-state');
-    
+function showMoreDonors() {
+    const donorContainer = document.getElementById('donors-container');
+    const emptyStateEl = document.getElementById('donors-empty-state');
+    const more = document.getElementById('donors-more');
+
     if (filteredDonors.length === 0) {
-        container.style.display = 'none';
-        emptyState.style.display = 'flex';
+        donorContainer.style.display = 'none';
+        emptyStateEl.hidden = false;
+        more.hidden = true;
         return;
     }
-    
-    container.style.display = 'block';
-    emptyState.style.display = 'none';
-    
-    // Display first 50 donors (implement pagination later if needed)
-    const donorsToShow = filteredDonors.slice(0, 50);
-    
-    container.innerHTML = donorsToShow.map(donor => createDonorCard(donor)).join('');
+
+    donorContainer.style.display = 'block';
+    emptyStateEl.hidden = true;
+
+    const next = filteredDonors.slice(donorsShown, donorsShown + DONORS_PER_PAGE);
+    donorContainer.insertAdjacentHTML('beforeend', next.map(createDonorCard).join(''));
+    donorsShown += next.length;
+
+    const remaining = filteredDonors.length - donorsShown;
+    more.hidden = remaining <= 0;
+    document.getElementById('donors-load-more').textContent =
+        `Show ${Math.min(remaining, DONORS_PER_PAGE).toLocaleString()} more (${remaining.toLocaleString()} remaining)`;
+    updateDonorCounts();
 }
 
-// Create donor card HTML
 function createDonorCard(donor) {
-    const borough = getBoroughName(donor.BOROUGHCD);
-    const donationDate = donor.donationDate ? 
-        donor.donationDate.toLocaleDateString() : 
-        donor['DATE OF DONATION'] || 'Unknown';
-    
-    const searchHighlight = currentDonorSearchTerm ? 
-        (text) => highlightSearchTerm(text || '', currentDonorSearchTerm) : 
-        (text) => escapeHTML(text || '');
-    
+    const highlight = text => highlightText(text || '', findSubstringHighlights(text || '', currentDonorTerms));
+    const borough = BOROUGHS[donor.BOROUGHCD] || '';
+    const donationDate = donor.donationDate
+        ? donor.donationDate.toLocaleDateString('en-US')
+        : (donor['DATE OF DONATION'] || 'Unknown date');
+    const location = [donor.CITY && highlight(donor.CITY), [donor.STATE, donor.ZIP].filter(Boolean).map(v => highlight(v)).join(' ')]
+        .filter(Boolean).join(', ');
+    const employer = [donor.EMPCITY, donor.EMPSTATE].filter(Boolean).map(v => highlight(v)).join(', ');
+
     return `
-        <div class="donor-card">
+        <div class="donor-card${donor.isRefund ? ' is-refund' : ''}">
             <div class="donor-header">
                 <div>
-                    <div class="donor-name">${searchHighlight(donor.NAME)}</div>
+                    <div class="donor-name">${highlight(donor.NAME)}</div>
                     <div class="donor-location">
-                        <span class="material-symbols-outlined">location_on</span>
-                        ${searchHighlight(donor.CITY)}, ${donor.STATE} ${donor.ZIP}
-                        ${borough ? ` (${borough})` : ''}
+                        <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                        <span>${location || 'Unknown location'}${borough ? ` (${borough})` : ''}</span>
                     </div>
                 </div>
                 <div class="donor-amount">
-                    ${formatCurrency(donor.DONATION)}
-                    ${donor['MATCH-AMOUNT'] > 0 ? ` (+$${donor['MATCH-AMOUNT']} match)` : ''}
+                    ${donor.isRefund ? '<span class="refund-tag"><span class="material-symbols-outlined" aria-hidden="true">undo</span>Refund</span>' : ''}
+                    ${formatCurrency(donor.DONATION, { cents: true })}
+                    ${donor['MATCH-AMOUNT'] > 0 ? `<span class="donor-match">+${formatCurrency(donor['MATCH-AMOUNT'], { cents: true })} match</span>` : ''}
                 </div>
             </div>
-            
+
             <div class="donor-details">
-                ${donor.EMPCITY ? `
+                ${employer ? `
                     <div class="donor-detail">
-                        <div class="donor-detail-label">Employment</div>
-                        <div class="donor-detail-value">${searchHighlight(donor.EMPCITY)}, ${donor.EMPSTATE}</div>
+                        <div class="donor-detail-label">Employer location</div>
+                        <div class="donor-detail-value">${employer}</div>
                     </div>
                 ` : ''}
-                
                 <div class="donor-detail">
-                    <div class="donor-detail-label">Payment Method</div>
-                    <div class="donor-detail-value">${getPaymentMethod(donor.PAY_METHOD)}</div>
+                    <div class="donor-detail-label">Payment method</div>
+                    <div class="donor-detail-value">${PAYMENT_METHODS[donor.PAY_METHOD] || 'Unknown'}</div>
                 </div>
-                
                 ${donor['PREVIOUS DONATION'] > 0 ? `
                     <div class="donor-detail">
-                        <div class="donor-detail-label">Previous Donations</div>
-                        <div class="donor-detail-value">$${donor['PREVIOUS DONATION']}</div>
+                        <div class="donor-detail-label">Previous donations</div>
+                        <div class="donor-detail-value">${formatCurrency(donor['PREVIOUS DONATION'], { cents: true })}</div>
                     </div>
                 ` : ''}
             </div>
-            
+
             <div class="donor-footer">
-                <div class="donor-date">${donationDate}</div>
+                <div class="donor-date">${escapeHTML(donationDate)}${donor.isRefund && donor['REFUND DATE'] ? ` · refunded ${escapeHTML(donor['REFUND DATE'])}` : ''}</div>
                 ${donor.hasIntermediary ? `
                     <div class="donor-intermediary">
-                        <span class="material-symbols-outlined">account_balance</span>
-                        Via ${searchHighlight(donor.INTERMEDIARY_NAME)}
+                        <span class="material-symbols-outlined" aria-hidden="true">account_balance</span>
+                        <span>Via ${highlight(donor.INTERMEDIARY_NAME)}${donor.INTERMEDIARY_EMP_NAME ? ` (${highlight(donor.INTERMEDIARY_EMP_NAME)})` : ''}</span>
                     </div>
                 ` : ''}
             </div>
@@ -1381,74 +1011,33 @@ function createDonorCard(donor) {
     `;
 }
 
-// Get borough name from code
-function getBoroughName(code) {
-    const boroughs = {
-        'M': 'Manhattan',
-        'K': 'Brooklyn', 
-        'Q': 'Queens',
-        'X': 'Bronx',
-        'R': 'Staten Island'
-    };
-    return boroughs[code] || '';
-}
-
-// Get payment method description
-function getPaymentMethod(code) {
-    const methods = {
-        '1': 'Cash',
-        '2': 'Check',
-        '3': 'Credit Card',
-        '4': 'Online/Electronic',
-        '5': 'Money Order',
-        '6': 'Other'
-    };
-    return methods[code] || 'Unknown';
-}
-
-// Reset all filters
 function resetAllFilters() {
-    // Clear search input
-    const searchInput = document.getElementById('donors-search-input');
-    if (searchInput) {
-        searchInput.value = '';
-    }
-    
-    // Reset all filter dropdowns to default values
-    document.getElementById('amount-filter').value = '';
-    document.getElementById('borough-filter').value = '';
-    document.getElementById('intermediary-filter').value = '';
-    document.getElementById('sort-filter').value = 'date-desc';
-    
-    // Clear current filter state
+    document.getElementById('donors-search-input').value = '';
+    document.getElementById('clear-donors-search').style.display = 'none';
+    document.getElementById('amount-filter').value = DEFAULT_DONOR_FILTERS.amount;
+    document.getElementById('borough-filter').value = DEFAULT_DONOR_FILTERS.borough;
+    document.getElementById('intermediary-filter').value = DEFAULT_DONOR_FILTERS.intermediary;
+    document.getElementById('sort-filter').value = DEFAULT_DONOR_FILTERS.sort;
     currentDonorSearchTerm = '';
-    currentFilters = {
-        amount: '',
-        borough: '',
-        intermediary: '',
-        sort: 'date-desc'
-    };
-    
-    // Reapply filters (which will show all donors)
+    currentDonorTerms = [];
+    currentFilters = { ...DEFAULT_DONOR_FILTERS };
     applyDonorFilters();
-    
-    // Update reset button state
-    updateResetButtonState();
 }
 
-// Show donor error
 function showDonorError(message) {
-    const container = document.getElementById('donors-container');
-    container.innerHTML = `
-        <div class="donors-empty-state" style="display: flex;">
-            <span class="material-symbols-outlined">error</span>
+    const donorContainer = document.getElementById('donors-container');
+    donorContainer.style.display = 'block';
+    donorContainer.innerHTML = `
+        <div class="donors-empty-state">
+            <span class="material-symbols-outlined" aria-hidden="true">error</span>
             <h2>Error Loading Donors</h2>
             <p>${escapeHTML(message)}</p>
         </div>
     `;
+    document.getElementById('donors-count').textContent = 'Unavailable';
 }
 
-// Start the application when DOM is loaded
+// Start the application when the DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {

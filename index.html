@@ -4,31 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zohran Mamdani (@ZohranKMamdani) / X</title>
+    <meta name="description" content="Unofficial, searchable archive of 8,000+ public X posts by Zohran Mamdani (@ZohranKMamdani), 2011 to 2025, plus a browsable campaign donor database.">
+    <link rel="icon" href="profile.jpg">
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    <!-- Only the icons the page uses (alphabetical, as Google Fonts requires). Add new icon names here. -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=account_balance,close,date_range,edit_note,error,expand_more,groups,help,inbox,location_on,mail,more_horiz,notifications,open_in_new,payments,repeat,reply,restart_alt,search,search_off,trending_up,tune,undo&display=block" rel="stylesheet">
 </head>
 <body>
     <div class="profile-section">
         <div class="banner-image">
-            <img src="banner.png" alt="Zohran for New York City Banner" />
+            <img src="banner.jpg" alt="Zohran for New York City banner" width="1500" height="500" />
         </div>
         <div class="profile-header">
             <div class="profile-image-wrapper">
                 <div class="profile-image">
-                    <img src="profile.png" alt="Zohran Mamdani Profile" />
+                    <img src="profile.jpg" alt="Zohran Mamdani" width="134" height="134" />
                 </div>
             </div>
             <div class="profile-actions">
-                <button class="action-btn more"><span class="material-symbols-outlined">more_horiz</span></button>
-                <button class="action-btn email"><span class="material-symbols-outlined">mail</span></button>
-                <button class="action-btn notify"><span class="material-symbols-outlined">notifications</span></button>
-                <button class="follow-btn">Following</button>
+                <span class="action-btn" aria-hidden="true"><span class="material-symbols-outlined">more_horiz</span></span>
+                <span class="action-btn" aria-hidden="true"><span class="material-symbols-outlined">mail</span></span>
+                <span class="action-btn" aria-hidden="true"><span class="material-symbols-outlined">notifications</span></span>
+                <a class="follow-btn" href="https://x.com/ZohranKMamdani" target="_blank" rel="noopener noreferrer" title="Open @ZohranKMamdani on X">Following</a>
             </div>
             <div class="profile-info">
-                <h2>Zohran Kwame Mamdani <span class="verified">✓</span></h2>
+                <h1>Zohran Kwame Mamdani <span class="verified" aria-label="Verified account">✓</span></h1>
                 <p class="handle">@ZohranKMamdani</p>
                 <p class="bio">NYS Assemblymember. Running for Mayor to freeze the rent, make buses fast + free, and deliver free universal childcare. Democratic Socialist. Vote by June 24!</p>
                 <div class="profile-meta">
@@ -42,50 +44,47 @@
                 </div>
             </div>
         </div>
-        <nav class="profile-nav">
-            <a href="#" class="nav-link active" data-tab="posts">Posts</a>
-            <a href="#" class="nav-link" data-tab="donors">Donors</a>
+        <nav class="profile-nav" role="tablist" aria-label="Sections">
+            <a href="#posts" class="nav-link active" data-tab="posts" role="tab" id="tab-posts" aria-controls="posts-tab" aria-selected="true">Posts</a>
+            <a href="#donors" class="nav-link" data-tab="donors" role="tab" id="tab-donors" aria-controls="donors-tab" aria-selected="false">Donors</a>
         </nav>
     </div>
 
     <main class="main-content">
         <!-- Posts Tab Content -->
-        <div class="tab-content" id="posts-tab" style="display: block;">
+        <div class="tab-content" id="posts-tab" role="tabpanel" aria-labelledby="tab-posts">
             <div class="search-section" id="search-section">
                 <div class="search-container">
-                    <div id="post-count" class="post-count"></div>
+                    <div id="post-count" class="post-count" aria-live="polite"></div>
                     <div class="search-input-wrapper">
-                        <span class="material-symbols-outlined search-icon">search</span>
-                        <input type="text" id="search-input" class="search-input" placeholder="Search posts (try: 'rent freeze', 'childcare', 'buses')..." />
-                        <button id="clear-search" class="clear-button">
-                            <span class="material-symbols-outlined">close</span>
+                        <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+                        <input type="search" id="search-input" class="search-input" placeholder="Search posts (try: 'rent freeze', 'childcare', 'buses')..." aria-label="Search posts" autocomplete="off" />
+                        <button type="button" id="clear-search" class="clear-button" aria-label="Clear search">
+                            <span class="material-symbols-outlined" aria-hidden="true">close</span>
                         </button>
-                        <button id="search-help" class="search-help-button" title="Search Help">
-                            <span class="material-symbols-outlined">help</span>
+                        <button type="button" id="search-help" class="search-help-button" aria-label="Search help" aria-expanded="false" aria-controls="search-help-panel">
+                            <span class="material-symbols-outlined" aria-hidden="true">help</span>
                         </button>
-                    </div>
-                    <div class="search-help-panel" id="search-help-panel">
-                        <div class="search-help-content">
-                            <h4>Enhanced Search Features</h4>
-                            <ul>
-                                <li><strong>Match All Words:</strong> All words must be found (AND logic)</li>
-                                <li><strong>Partial Matching:</strong> "child" matches "childcare"</li>
-                                <li><strong>Word Variations:</strong> "running" matches "run", "ran" (stemming)</li>
-                                <li><strong>Search All Fields:</strong> Text, username, and other post data</li>
-                                <li><strong>Smart Highlighting:</strong> All matches highlighted</li>
-                                <li><strong>Exact Matching:</strong> Precise results without fuzzy approximations</li>
-                            </ul>
-                            <p><em>Stopwords like "the", "and", "of" are automatically ignored.</em></p>
+                        <div class="search-help-panel" id="search-help-panel">
+                            <div class="search-help-content">
+                                <h4>How search works</h4>
+                                <ul>
+                                    <li><strong>All words must match:</strong> "rent freeze" finds posts containing both words</li>
+                                    <li><strong>Word beginnings:</strong> "child" matches "childcare" and "children"</li>
+                                    <li><strong>Simple variations:</strong> "buses" matches "bus" and "housing" matches "houses"</li>
+                                    <li><strong>Mentions and hashtags:</strong> "nycmayor" matches @NYCMayor</li>
+                                    <li><strong>Accents ignored:</strong> "jose" matches "José"</li>
+                                </ul>
+                                <p><em>Common words like "the", "and", "of" are ignored unless they're all you type.</em></p>
+                            </div>
                         </div>
                     </div>
                     <div class="date-filter-section">
-                        <div class="date-filter-header">
-                            <span class="material-symbols-outlined">date_range</span>
-                            <span>Filter by date</span>
-                            <button type="button" id="toggle-date-filter" class="toggle-button" aria-label="Toggle date filter" aria-expanded="false" aria-controls="date-filter-controls">
-                                <span class="material-symbols-outlined">expand_more</span>
-                            </button>
-                        </div>
+                        <button type="button" class="date-filter-header" id="toggle-date-filter" aria-expanded="false" aria-controls="date-filter-controls">
+                            <span class="material-symbols-outlined" aria-hidden="true">date_range</span>
+                            <span class="date-filter-title">Filter by date</span>
+                            <span class="material-symbols-outlined toggle-icon" aria-hidden="true">expand_more</span>
+                        </button>
                         <div class="date-filter-controls" id="date-filter-controls">
                             <div class="date-inputs">
                                 <div class="date-input-group">
@@ -98,17 +97,15 @@
                                 </div>
                             </div>
                             <div class="date-filter-actions">
-                                <button id="apply-date-filter" class="apply-filter-btn">Apply Filter</button>
-                                <button id="clear-date-filter" class="clear-filter-btn">Clear</button>
+                                <button type="button" id="apply-date-filter" class="apply-filter-btn">Apply Filter</button>
+                                <button type="button" id="clear-date-filter" class="clear-filter-btn">Clear</button>
                             </div>
-                            <div class="date-presets">
-                                <button class="preset-btn" data-days="7">Last 7 days</button>
-                                <button class="preset-btn" data-days="30">Last 30 days</button>
-                                <button class="preset-btn" data-days="90">Last 3 months</button>
+                            <div class="date-presets" id="date-presets" aria-label="Jump to a year">
+                                <!-- Year buttons are generated from the archive -->
                             </div>
                         </div>
                     </div>
-                    <div class="search-results-count" id="search-results"></div>
+                    <div class="search-results-count" id="search-results" aria-live="polite"></div>
                 </div>
             </div>
 
@@ -116,68 +113,66 @@
                 <div class="spinner"></div>
                 <p>Loading posts...</p>
             </div>
-            
+
             <div class="posts-grid" id="posts-container">
                 <!-- Posts will be dynamically inserted here -->
             </div>
-            
-            <div class="infinite-loading" id="infinite-loading">
-                <div class="spinner-small"></div>
-                <p>Loading more posts...</p>
-            </div>
-            
+
             <div class="empty-state" id="empty-state">
-                <span class="material-symbols-outlined">inbox</span>
+                <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
                 <h2>No posts found</h2>
                 <p>There are no posts to display at the moment.</p>
             </div>
         </div>
 
         <!-- Donors Tab Content -->
-        <div class="tab-content" id="donors-tab" style="display: none;">
+        <div class="tab-content" id="donors-tab" role="tabpanel" aria-labelledby="tab-donors" hidden>
             <div class="donors-header">
                 <div class="donors-title">
                     <h2>Campaign Donors Database</h2>
                     <div class="donors-count" id="donors-count">Loading...</div>
                 </div>
-                
+
                 <!-- Analytics Dashboard -->
                 <div class="analytics-dashboard">
                     <div class="analytics-cards">
                         <div class="analytics-card">
                             <div class="analytics-icon">
-                                <span class="material-symbols-outlined">payments</span>
+                                <span class="material-symbols-outlined" aria-hidden="true">payments</span>
                             </div>
                             <div class="analytics-content">
                                 <div class="analytics-value" id="total-donations">$0</div>
-                                <div class="analytics-label">Total Donations</div>
+                                <div class="analytics-label">Total Raised</div>
+                                <div class="analytics-sub" id="total-refunds"></div>
                             </div>
                         </div>
                         <div class="analytics-card">
                             <div class="analytics-icon">
-                                <span class="material-symbols-outlined">groups</span>
+                                <span class="material-symbols-outlined" aria-hidden="true">groups</span>
                             </div>
                             <div class="analytics-content">
                                 <div class="analytics-value" id="total-donors">0</div>
-                                <div class="analytics-label">Total Donors</div>
+                                <div class="analytics-label">Contributions</div>
+                                <div class="analytics-sub" id="unique-donors"></div>
                             </div>
                         </div>
                         <div class="analytics-card">
                             <div class="analytics-icon">
-                                <span class="material-symbols-outlined">account_balance</span>
+                                <span class="material-symbols-outlined" aria-hidden="true">account_balance</span>
                             </div>
                             <div class="analytics-content">
                                 <div class="analytics-value" id="intermediary-donations">$0</div>
                                 <div class="analytics-label">Via Intermediaries</div>
+                                <div class="analytics-sub" id="intermediary-share"></div>
                             </div>
                         </div>
                         <div class="analytics-card">
                             <div class="analytics-icon">
-                                <span class="material-symbols-outlined">trending_up</span>
+                                <span class="material-symbols-outlined" aria-hidden="true">trending_up</span>
                             </div>
                             <div class="analytics-content">
                                 <div class="analytics-value" id="average-donation">$0</div>
-                                <div class="analytics-label">Average Donation</div>
+                                <div class="analytics-label">Average Contribution</div>
                             </div>
                         </div>
                     </div>
@@ -188,22 +183,22 @@
             <div class="donors-search-section">
                 <div class="donors-search-container">
                     <div class="donors-search-wrapper">
-                        <span class="material-symbols-outlined search-icon">search</span>
-                        <input type="text" id="donors-search-input" class="donors-search-input" placeholder="Search donors by name, city, employer..." />
-                        <button id="clear-donors-search" class="clear-button">
-                            <span class="material-symbols-outlined">close</span>
+                        <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+                        <input type="search" id="donors-search-input" class="donors-search-input" placeholder="Search by name, city, ZIP or intermediary..." aria-label="Search donors" autocomplete="off" />
+                        <button type="button" id="clear-donors-search" class="clear-button" aria-label="Clear donor search">
+                            <span class="material-symbols-outlined" aria-hidden="true">close</span>
                         </button>
                     </div>
-                    
+
                     <!-- Filters Toggle Button -->
                     <div class="filters-toggle-section">
-                        <button id="toggle-donor-filters" class="filters-toggle-button">
-                            <span class="material-symbols-outlined">tune</span>
+                        <button type="button" id="toggle-donor-filters" class="filters-toggle-button" aria-expanded="false" aria-controls="donors-filters-container">
+                            <span class="material-symbols-outlined" aria-hidden="true">tune</span>
                             <span>Filters</span>
-                            <span class="material-symbols-outlined toggle-icon">expand_more</span>
+                            <span class="material-symbols-outlined toggle-icon" aria-hidden="true">expand_more</span>
                         </button>
                     </div>
-                    
+
                     <!-- Collapsible Filters -->
                     <div class="donors-filters-container" id="donors-filters-container">
                         <div class="donors-filters">
@@ -211,13 +206,14 @@
                                 <label for="amount-filter">Amount Range:</label>
                                 <select id="amount-filter" class="filter-select">
                                     <option value="">All amounts</option>
-                                    <option value="0-25">$0 - $25</option>
-                                    <option value="25-100">$25 - $100</option>
-                                    <option value="100-500">$100 - $500</option>
-                                    <option value="500+">$500+</option>
+                                    <option value="0-25">Up to $25</option>
+                                    <option value="25-100">$25.01 - $100</option>
+                                    <option value="100-500">$100.01 - $500</option>
+                                    <option value="500+">Over $500</option>
+                                    <option value="refund">Refunds only</option>
                                 </select>
                             </div>
-                            
+
                             <div class="filter-group">
                                 <label for="borough-filter">Borough:</label>
                                 <select id="borough-filter" class="filter-select">
@@ -229,7 +225,7 @@
                                     <option value="R">Staten Island</option>
                                 </select>
                             </div>
-                            
+
                             <div class="filter-group">
                                 <label for="intermediary-filter">Via Intermediary:</label>
                                 <select id="intermediary-filter" class="filter-select">
@@ -238,7 +234,7 @@
                                     <option value="no">Direct donations only</option>
                                 </select>
                             </div>
-                            
+
                             <div class="filter-group">
                                 <label for="sort-filter">Sort by:</label>
                                 <select id="sort-filter" class="filter-select">
@@ -251,12 +247,12 @@
                                 </select>
                             </div>
                         </div>
-                        
+
                         <div class="donors-results-info">
-                            <div id="donors-search-results" class="search-results-count"></div>
-                            <button id="reset-filters" class="reset-filters-btn">
-                                <span class="material-symbols-outlined">restart_alt</span>
-                                Reset Filters
+                            <div id="donors-search-results" class="search-results-count" aria-live="polite"></div>
+                            <button type="button" id="reset-filters" class="reset-filters-btn" disabled>
+                                <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                                Reset filters
                             </button>
                         </div>
                     </div>
@@ -268,13 +264,17 @@
                 <div class="spinner"></div>
                 <p>Loading donor data...</p>
             </div>
-            
+
             <div class="donors-grid" id="donors-container">
                 <!-- Donors will be dynamically inserted here -->
             </div>
-            
-            <div class="donors-empty-state" id="donors-empty-state" style="display: none;">
-                <span class="material-symbols-outlined">search_off</span>
+
+            <div class="donors-more" id="donors-more" hidden>
+                <button type="button" id="donors-load-more" class="load-more-btn">Show more</button>
+            </div>
+
+            <div class="donors-empty-state" id="donors-empty-state" hidden>
+                <span class="material-symbols-outlined" aria-hidden="true">search_off</span>
                 <h2>No donors found</h2>
                 <p>Try adjusting your search criteria or filters.</p>
             </div>
