@@ -710,10 +710,6 @@ mark {
     background: var(--card-bg);
 }
 
-.footer p + p {
-    margin-top: 4px;
-}
-
 /* Profile Section */
 .profile-section {
     position: relative;
